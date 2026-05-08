@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>廢土衝鋒 — 戰鬥原型 v0.4</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0e0900;display:flex;flex-direction:column;align-items:center;
+     justify-content:center;min-height:100vh;font-family:'Courier New',monospace;
+     color:#ddd;overflow-x:hidden}
+
+#sel{text-align:center;width:100%;padding:24px 16px}
+h1{font-size:clamp(16px,5vw,22px);color:#e8a040;margin-bottom:6px;letter-spacing:3px}
+.sub{font-size:12px;color:#664433;margin-bottom:24px}
+.cards{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.card{background:#120b00;border:2px solid #2e1e00;padding:18px 16px;
+      width:min(220px,calc(100vw - 40px));
+      cursor:pointer;text-align:left;transition:.12s}
+.card:hover{background:#1c1200}
+.card .cn{font-size:16px;font-weight:bold;margin-bottom:8px}
+.card .cd{font-size:11px;color:#776655;margin-bottom:14px;line-height:1.75;white-space:pre-line}
+.card .cs{font-size:11px;color:#997744;margin-bottom:2px}
+.card .cw{font-size:11px;color:#cc8833;margin-top:5px}
+
+/* canvas 縮放：內部解析度維持 900×430，CSS 依視窗寬度等比縮放 */
+#game{display:none;flex-direction:column;align-items:center;
+      width:100%;max-width:900px}
+canvas{display:block;width:100%;aspect-ratio:900/430}
+
+/* 橫置提示（直向窄螢幕才顯示） */
+#rotate-hint{display:none;font-size:11px;color:#664433;margin-top:8px;text-align:center}
+@media (orientation:portrait) and (max-width:600px){
+  #rotate-hint{display:block}
+}
+
+#ov{position:fixed;inset:0;display:none;align-items:center;justify-content:center;
+    background:rgba(0,0,0,.82);flex-direction:column;gap:12px;padding:20px}
+#ov h2{font-size:clamp(22px,6vw,36px);letter-spacing:5px}
+#ov .stats{font-size:clamp(11px,3vw,13px);color:#aa8855;text-align:center;line-height:2.2}
+#ov button{margin-top:6px;background:#120900;border:1px solid #443322;color:#ccaa88;
+           padding:9px 28px;cursor:pointer;font-family:inherit;font-size:13px;letter-spacing:1px}
+#ov button:hover{background:#1e1200}
+
+#logpanel{width:100%;max-height:220px;overflow-y:auto;background:#060400;
+  border:1px solid #1e1000;margin-top:6px;padding:6px 10px;
+  font-size:11px;line-height:1.85;color:#554422}
+#logpanel .lhdr{color:#664422;margin-bottom:2px;border-bottom:1px solid #1e1000;padding-bottom:2px}
+#logpanel .plog{color:#88cc66}
+#logpanel .elog{color:#cc5544}
+#logpanel .slog{color:#554422}
+</style>
+</head>
+<body>
+<div id="sel">
+  <h1>廢土衝鋒</h1>
+  <p class="sub">選擇流派，觀察數值計算的戰鬥結果</p>
+  <div class="cards" id="cards"></div>
+</div>
+<div id="game">
+  <canvas id="c" width="900" height="430"></canvas>
+  <p id="rotate-hint">↺ 建議橫置裝置以獲得最佳體驗</p>
+  <div id="logpanel"><div class="lhdr">━ 詳細戰鬥紀錄</div></div>
+</div>
+<div id="ov">
+  <h2 id="ot"></h2>
+  <div class="stats" id="ostats"></div>
+  <button onclick="backToSel()">重新選擇</button>
+</div>
+
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════
+// 座標常數
+// ═══════════════════════════════════════════════
+
+const SCALE   = 0.72;   // gap 單位 → 螢幕像素
+const SY      = 152;    // 車輛 Y 座標
+const GY      = 207;    // 地面線 Y
+const PANEL_Y = 244;    // 武器面板起始 Y
+const LOG_Y   = 358;    // 戰鬥紀錄起始 Y
+
+// ═══════════════════════════════════════════════
+// 資料定義
+// ═══════════════════════════════════════════════
+
+const WDEFS = {
+  cannon:    { name:'機砲', range:320, cd:80,  dmg:14, scale:'gun' },
+  subCannon: { name:'副砲', range:155, cd:38,  dmg:18, scale:'gun' },
+  missile:   { name:'火箭', range:540, cd:180, dmg:36, scale:'nav' },
+  ram:       { name:'撞角', range:52,  cd:38,  melee:true }
+};
+
+const WCOL = { cannon:'#FFD700', subCannon:'#FFA040', missile:'#FF3366', ram:'#cc6622' };
+
+const BUILDS = {
+  rammer: {
+    name:'衝撞流', color:'#FF7744',
+    desc:'Nav 最高\n→ 速度快，主動追近距離\n→ 撞角接觸傷害極高\n→ 血量薄，靠速度決勝',
+    stats:{craft:3, gun:1, nav:7},
+    weapons:['ram','subCannon'],
+    targetGap:20, fleeGap:0
+  },
+  gunner: {
+    name:'砲兵流', color:'#44AAFF',
+    desc:'Gun + Craft 最高\n→ 中距離持續高輸出\n→ HP 最厚，打持久戰\n→ 速度慢，位置由敵決定',
+    stats:{craft:5, gun:5, nav:0},
+    weapons:['cannon','subCannon'],
+    targetGap:200, fleeGap:0
+  },
+  missiler: {
+    name:'火箭流', color:'#CC88FF',
+    desc:'Nav + Gun 次高\n→ 速度快，保持遠距\n→ 火箭射程 540 > 敵砲 320\n→ 在安全帶外單方面輸出',
+    stats:{craft:2, gun:3, nav:5},
+    weapons:['missile','missile'],
+    targetGap:400, fleeGap:320
+  }
+};
+
+const ENEMY_DEF = {
+  name:'攔截車', color:'#FF5555',
+  stats:{craft:3, gun:2, nav:3},
+  weapons:['cannon','subCannon']
+};
+
+// ═══════════════════════════════════════════════
+// 背景元素（一次初始化）
+// ═══════════════════════════════════════════════
+
+const TERRAIN = Array.from({length:22}, (_,i) => ({
+  wx:  i * 120 + Math.random() * 70,
+  y:   4  + Math.random() * 22,
+  r:   3  + Math.random() * 5,
+  len: 18 + Math.random() * 38,
+  type: Math.random() > 0.45 ? 'rock' : 'dash',
+  spd: 0.45 + Math.random() * 0.5
+}));
+
+// ═══════════════════════════════════════════════
+// Ship
+// ═══════════════════════════════════════════════
+
+class Ship {
+  constructor(isPlayer, def) {
+    this.isPlayer = isPlayer;
+    const s = def.stats;
+    this.craft = s.craft; this.gun = s.gun; this.nav = s.nav;
+    this.maxHp    = 80 + this.craft * 28;
+    this.hp       = this.maxHp;
+    this.baseSpd  = 2.2 + this.nav * 0.38;
+    this.color    = def.color;
+    this.name     = def.name;
+    this.weapons  = def.weapons.map(id => ({ ...WDEFS[id], id, timer: 0 }));
+    this.hitFlash    = 0;
+    this.totalDmgOut = 0;
+    this.totalDmgIn  = 0;
+    this.hitCount    = 0;
+  }
+  calcDmg(w) {
+    if (w.melee) return 10 + this.nav * 5;
+    const stat = w.scale === 'gun' ? this.gun : this.nav;
+    return w.dmg * (1 + stat * 0.12);
+  }
+  tick() {
+    if (this.hitFlash > 0) this.hitFlash--;
+    this.weapons.forEach(w => { if (w.timer > 0) w.timer--; });
+  }
+}
+
+// ═══════════════════════════════════════════════
+// 遊戲狀態
+// ═══════════════════════════════════════════════
+
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
+
+let player, enemy, gap, phase, frame, buildId;
+let combatLog     = [];
+let fightDuration = 0;
+let worldX        = 0;
+let floatingDmg   = [];
+let playerSX      = 220;   // 螢幕 X，渲染時更新，供浮動數字使用
+let enemySX       = 700;
+
+// ═══════════════════════════════════════════════
+// 選擇介面
+// ═══════════════════════════════════════════════
+
+(function() {
+  const cont = document.getElementById('cards');
+  for (const [id, b] of Object.entries(BUILDS)) {
+    const s = b.stats;
+    const el = document.createElement('div');
+    el.className = 'card';
+    el.style.borderColor = b.color + '44';
+    el.innerHTML = `
+      <div class="cn" style="color:${b.color}">${b.name}</div>
+      <div class="cd">${b.desc}</div>
+      <div class="cs">Craft ${s.craft} &nbsp;|&nbsp; Gun ${s.gun} &nbsp;|&nbsp; Nav ${s.nav}</div>
+      <div class="cs">HP ${80+s.craft*28} &nbsp;|&nbsp; 速度 ${(2.2+s.nav*0.38).toFixed(1)}/幀</div>
+      <div class="cw">武器: ${b.weapons.map(w=>WDEFS[w].name).join(' + ')}</div>`;
+    el.addEventListener('click', () => startGame(id));
+    cont.appendChild(el);
+  }
+})();
+
+function startGame(id) {
+  buildId = id;
+  const bd = BUILDS[id];
+  player = new Ship(true, bd);
+  player.targetGap = bd.targetGap;
+  player.fleeGap   = bd.fleeGap;
+  enemy  = new Ship(false, ENEMY_DEF);
+  gap    = 400;
+  phase  = 'combat';
+  combatLog     = [];
+  fightDuration = 0;
+  worldX        = 0;
+  floatingDmg   = [];
+  frame         = 0;
+
+  const panel = document.getElementById('logpanel');
+  panel.innerHTML = '<div class="lhdr">━ 詳細戰鬥紀錄</div>';
+  const pWpns = player.weapons.map(w => {
+    const d = w.melee ? '10+Nav×5' : `基礎${w.dmg}`;
+    return `${w.name}(射程${w.range ?? 'N/A'},CD${w.cd},${d})`;
+  }).join(' + ');
+  const eWpns = enemy.weapons.map(w => {
+    const d = w.melee ? '10+Nav×5' : `基礎${w.dmg}`;
+    return `${w.name}(射程${w.range ?? 'N/A'},CD${w.cd},${d})`;
+  }).join(' + ');
+  appendLog(`玩家: ${player.name}  HP=${player.maxHp}  速度=${player.baseSpd.toFixed(2)}  [${pWpns}]`, 'plog');
+  appendLog(`敵方: ${enemy.name}  HP=${enemy.maxHp}  速度=${enemy.baseSpd.toFixed(2)}  [${eWpns}]`, 'elog');
+  appendLog(`初始 gap=400  targetGap=${player.targetGap}  fleeGap=${player.fleeGap}`, 'slog');
+
+  document.getElementById('sel').style.display  = 'none';
+  document.getElementById('game').style.display = 'flex';
+  requestAnimationFrame(loop);
+}
+
+function backToSel() {
+  phase = 'sel';
+  document.getElementById('ov').style.display   = 'none';
+  document.getElementById('game').style.display = 'none';
+  document.getElementById('sel').style.display  = 'block';
+}
+
+// ═══════════════════════════════════════════════
+// 核心更新（每幀 2 tick = 2× 速度）
+// ═══════════════════════════════════════════════
+
+function loop() {
+  if (phase !== 'combat') return;
+  frame++;
+  tick(); tick();
+  render();
+  requestAnimationFrame(loop);
+}
+
+function tick() {
+  if (phase !== 'combat') return;
+  fightDuration++;
+  player.tick();
+  enemy.tick();
+  const pSpd = playerEffSpd();
+  const eSpd = enemyEffSpd();
+  gap = Math.max(0, Math.min(720, gap + (eSpd - pSpd)));
+  worldX += pSpd;
+  if (fightDuration % 120 === 0) logStatus(pSpd, eSpd);
+  fire(player, enemy);
+  fire(enemy,  player);
+  if (enemy.hp  <= 0 && phase === 'combat') endGame(true);
+  if (player.hp <= 0 && phase === 'combat') endGame(false);
+}
+
+function playerEffSpd() {
+  if (gap > player.targetGap + 30) return player.baseSpd;
+  if (player.fleeGap > 0 && gap < player.fleeGap) return player.baseSpd;
+  return 0;
+}
+function enemyEffSpd() {
+  if (gap < 120) return Math.min(enemy.baseSpd * 1.2, 5.0);
+  if (gap > 300) return enemy.baseSpd * 0.35;
+  return enemy.baseSpd;
+}
+
+function fire(src, tgt) {
+  for (const w of src.weapons) {
+    if (w.timer <= 0 && gap <= (w.range || 0)) {
+      const raw = src.calcDmg(w);
+      const rnd = 0.9 + Math.random() * 0.2;
+      const dmg = raw * rnd;
+      const hpBefore = Math.round(tgt.hp);
+      tgt.hp = Math.max(0, tgt.hp - dmg);
+      const hpAfter  = Math.round(tgt.hp);
+      tgt.hitFlash     = 7;
+      src.totalDmgOut += dmg;
+      tgt.totalDmgIn  += dmg;
+      src.hitCount++;
+      addLog(`${src.isPlayer ? '▶' : '◀'} ${w.name}  −${Math.round(dmg)}`, src.isPlayer);
+
+      let formula;
+      if (w.melee) {
+        formula = `(10+Nav${src.nav}×5)=${raw.toFixed(1)}`;
+      } else {
+        const sv = w.scale === 'gun' ? src.gun : src.nav;
+        const sl = w.scale === 'gun' ? `Gun${src.gun}` : `Nav${src.nav}`;
+        formula = `${w.dmg}×(1+${sl}×.12)=${raw.toFixed(1)}`;
+      }
+      const t = String(fightDuration).padStart(5);
+      const g = String(Math.round(gap)).padStart(3);
+      const tl = tgt.isPlayer ? '玩HP' : '敵HP';
+      appendLog(
+        `[t=${t}] ${src.isPlayer ? '▶我方' : '◀敵方'} ${w.name}  gap=${g}  ${formula} ×${rnd.toFixed(3)}=-${Math.round(dmg)}  ${tl}:${hpBefore}→${hpAfter}`,
+        src.isPlayer ? 'plog' : 'elog'
+      );
+
+      floatingDmg.push({
+        x: tgt.isPlayer ? playerSX : enemySX,
+        y: SY - 30,
+        text: `-${Math.round(dmg)}`,
+        col: src.isPlayer ? '#ffaa44' : '#ff4455',
+        age: 0
+      });
+      w.timer = w.cd;
+    }
+  }
+}
+
+function addLog(text, isPlayer) {
+  combatLog.unshift({ text, isPlayer, age: 0 });
+  if (combatLog.length > 4) combatLog.pop();
+}
+
+function appendLog(text, cls) {
+  const panel = document.getElementById('logpanel');
+  const div = document.createElement('div');
+  if (cls) div.className = cls;
+  div.textContent = text;
+  panel.appendChild(div);
+  panel.scrollTop = panel.scrollHeight;
+}
+
+function logStatus(pSpd, eSpd) {
+  const pMode = gap > player.targetGap + 30 ? '追'
+              : (player.fleeGap > 0 && gap < player.fleeGap ? '逃' : '維持');
+  const eMode = gap < 120 ? '逃' : (gap > 300 ? '待' : '進');
+  const delta = eSpd - pSpd;
+  const t = String(fightDuration).padStart(5);
+  const g = String(Math.round(gap)).padStart(3);
+  appendLog(
+    `[t=${t}] ── gap=${g}  玩家${pSpd.toFixed(2)}/t(${pMode})  敵方${eSpd.toFixed(2)}/t(${eMode})  Δgap/t${delta >= 0 ? '+' : ''}${delta.toFixed(2)}`,
+    'slog'
+  );
+}
+
+// ═══════════════════════════════════════════════
+// 渲染
+// ═══════════════════════════════════════════════
+
+function render() {
+  ctx.fillStyle = '#0e0900';
+  ctx.fillRect(0, 0, 900, 430);
+
+  const px = 220;
+  const ex = px + gap * SCALE;
+  playerSX = px;
+  enemySX  = ex;
+
+  drawDesertScene(px, ex);
+  drawStatusBar(px, ex);
+  drawRangeBeams(px, ex);
+  drawCarIcon(px, SY, player);
+  drawCarIcon(ex, SY, enemy);
+  drawSpeedLabels(px, ex);
+  drawFloatingDmg();
+  drawWeaponPanels();
+  drawCombatLog();
+}
+
+// ── 頂部狀態列：HP + 距離 ──────────────────────
+function drawStatusBar(px, ex) {
+  drawHpBar(8,   6, 300, 22, player, true);
+  drawHpBar(592, 6, 300, 22, enemy,  false);
+
+  // 中央：距離（大字）+ 趨勢 + 計時
+  const pSpd = playerEffSpd(), eSpd = enemyEffSpd();
+  const diff = eSpd - pSpd;
+  const trendTxt = diff < -0.1 ? '▼ 縮短' : diff > 0.1 ? '▲ 增加' : '= 持平';
+  const trendCol = diff < -0.1 ? '#ff7744' : diff > 0.1 ? '#44aaff' : '#776655';
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#ddbb55'; ctx.font = 'bold 22px Courier New';
+  ctx.fillText(Math.round(gap), 450, 21);
+  ctx.fillStyle = '#664422'; ctx.font = '9px Courier New';
+  ctx.fillText('距 離', 450, 32);
+  ctx.fillStyle = trendCol; ctx.font = 'bold 10px Courier New';
+  ctx.fillText(trendTxt, 450, 44);
+  ctx.fillStyle = '#443322'; ctx.font = '9px Courier New'; ctx.textAlign = 'right';
+  ctx.fillText(`${(fightDuration / 60 / 2).toFixed(1)}s`, 895, 44);
+}
+
+function drawHpBar(x, y, w, h, ship, left) {
+  const r = Math.max(0, ship.hp / ship.maxHp);
+  ctx.fillStyle = '#100800'; ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = r > 0.5 ? '#44bb33' : r > 0.25 ? '#ddaa22' : '#dd3333';
+  ctx.fillRect(x, y, w * r, h);
+  if (ship.hitFlash > 0) {
+    ctx.fillStyle = `rgba(255,180,60,${ship.hitFlash / 7 * 0.45})`;
+    ctx.fillRect(x, y, w, h);
+  }
+  ctx.strokeStyle = '#2a1200'; ctx.lineWidth = 1; ctx.strokeRect(x, y, w, h);
+  ctx.fillStyle = ship.color; ctx.font = 'bold 11px Courier New';
+  ctx.textAlign = left ? 'left' : 'right';
+  ctx.fillText(ship.name, left ? x : x + w, y - 2);
+  ctx.fillStyle = '#998866'; ctx.font = '10px Courier New';
+  ctx.fillText(`${Math.round(ship.hp)} / ${ship.maxHp}`, left ? x + 4 : x + w - 4, y + h - 4);
+}
+
+// ── 沙漠場景 ──────────────────────────────────
+function drawDesertScene(px, ex) {
+  // 天空漸層（廢土暖色）
+  const sky = ctx.createLinearGradient(0, 48, 0, GY);
+  sky.addColorStop(0, '#0e0500');
+  sky.addColorStop(0.5, '#2c1100');
+  sky.addColorStop(1, '#481e00');
+  ctx.fillStyle = sky; ctx.fillRect(0, 48, 900, GY - 48);
+
+  // 遠景台地（靜態剪影）
+  ctx.fillStyle = '#1c0900';
+  const mesas = [
+    [[0,GY],[0,GY-42],[88,GY-85],[195,GY-78],[268,GY-42],[268,GY]],
+    [[340,GY],[340,GY-40],[462,GY-96],[570,GY-83],[655,GY-40],[655,GY]],
+    [[710,GY],[710,GY-36],[800,GY-70],[895,GY-64],[930,GY-36],[930,GY]]
+  ];
+  mesas.forEach(pts => {
+    ctx.beginPath();
+    pts.forEach(([mx,my], i) => i === 0 ? ctx.moveTo(mx,my) : ctx.lineTo(mx,my));
+    ctx.closePath(); ctx.fill();
+  });
+
+  // 地面
+  const grd = ctx.createLinearGradient(0, GY, 0, 245);
+  grd.addColorStop(0, '#3a2208'); grd.addColorStop(1, '#1e1000');
+  ctx.fillStyle = grd; ctx.fillRect(0, GY, 900, 245 - GY);
+  ctx.strokeStyle = '#5a3010'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(0, GY); ctx.lineTo(900, GY); ctx.stroke();
+
+  // 地面碎石 / 刮痕
+  TERRAIN.forEach(d => {
+    const sx = ((d.wx - worldX * d.spd) % 1400 + 1400) % 1400;
+    if (d.type === 'rock') {
+      ctx.fillStyle = 'rgba(80,45,15,0.5)';
+      ctx.beginPath(); ctx.ellipse(sx, GY + d.y, d.r * 1.5, d.r * 0.7, 0, 0, Math.PI*2); ctx.fill();
+    } else {
+      ctx.strokeStyle = 'rgba(65,38,12,0.35)'; ctx.lineWidth = 1;
+      ctx.setLineDash([d.len, 22]);
+      ctx.beginPath(); ctx.moveTo(sx, GY + d.y); ctx.lineTo(sx + d.len * 2, GY + d.y); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  });
+
+  // 輪胎塵埃
+  drawDust(px - 32, SY + 14);
+  drawDust(ex - 32, SY + 14);
+}
+
+function drawDust(x, y) {
+  for (let i = 0; i < 5; i++) {
+    const dx = x - i * 12 + (Math.random() - 0.5) * 4;
+    const dy = y + (Math.random() - 0.5) * 5;
+    ctx.fillStyle = `rgba(150,90,35,${0.20 - i * 0.035})`;
+    ctx.beginPath(); ctx.arc(dx, dy, 4 + i * 2.5, 0, Math.PI * 2); ctx.fill();
+  }
+}
+
+// ── 車輛圖示 ──────────────────────────────────
+function drawCarIcon(x, y, ship) {
+  ctx.save();
+  ctx.translate(x, y);
+  if (ship.hitFlash > 0) ctx.filter = 'brightness(2.5)';
+
+  const col = ship.color;
+  const dk  = darker(col, 0.42);
+
+  // 輪子（先畫，在車身後）
+  [[-25, 12], [19, 12]].forEach(([wx, wy]) => {
+    ctx.fillStyle = '#111';
+    ctx.beginPath(); ctx.arc(wx, wy, 9, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#3a3a3a'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(wx, wy, 9, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = '#2a2a2a';
+    ctx.beginPath(); ctx.arc(wx, wy, 4, 0, Math.PI * 2); ctx.fill();
+  });
+
+  // 主車身
+  ctx.fillStyle = col; ctx.strokeStyle = dk; ctx.lineWidth = 2;
+  ctx.fillRect(-36, -8, 72, 19); ctx.strokeRect(-36, -8, 72, 19);
+
+  // 駕駛艙
+  ctx.fillStyle = darker(col, 0.62); ctx.strokeStyle = dk; ctx.lineWidth = 1.5;
+  ctx.fillRect(-22, -20, 38, 14); ctx.strokeRect(-22, -20, 38, 14);
+
+  // 前保險桿
+  ctx.fillStyle = '#252525'; ctx.strokeStyle = '#444'; ctx.lineWidth = 1;
+  ctx.fillRect(29, -5, 7, 16); ctx.strokeRect(29, -5, 7, 16);
+
+  // 撞角（衝撞流）
+  if (ship.weapons.some(w => w.id === 'ram')) {
+    ctx.fillStyle = '#bbb'; ctx.strokeStyle = '#888'; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(36, -1); ctx.lineTo(50, -5); ctx.lineTo(57, 2); ctx.lineTo(50, 7); ctx.lineTo(36, 2);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+  }
+
+  ctx.filter = 'none';
+  ctx.restore();
+}
+
+// ── 速度標籤（車輛下方）──────────────────────
+function drawSpeedLabels(px, ex) {
+  const pSpd = playerEffSpd(), eSpd = enemyEffSpd();
+  ctx.font = '10px Courier New'; ctx.textAlign = 'center';
+  ctx.fillStyle = rgba(player.color, 0.75);
+  ctx.fillText(`→ ${pSpd.toFixed(1)}/t`, px, SY + 32);
+  ctx.fillStyle = rgba(enemy.color, 0.75);
+  ctx.fillText(`→ ${eSpd.toFixed(1)}/t`, ex, SY + 32);
+}
+
+// ── 射程光束 ──────────────────────────────────
+function drawRangeBeams(px, ex) {
+  const oys = [-10, 6];
+
+  player.weapons.forEach((w, i) => {
+    if (!w.range) return;
+    const inR  = gap <= w.range;
+    const col  = WCOL[w.id] || '#aaa';
+    const bx   = px + 40;
+    const endX = Math.min(bx + w.range * SCALE, ex - 38);
+    const oy   = SY + oys[i % 2];
+    ctx.strokeStyle = inR ? rgba(col, 0.65) : rgba(col, 0.14);
+    ctx.lineWidth   = inR ? 2 : 1;
+    ctx.setLineDash(inR ? [] : [4, 5]);
+    ctx.beginPath(); ctx.moveTo(bx, oy); ctx.lineTo(endX, oy); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = inR ? rgba(col, 0.9) : rgba(col, 0.28);
+    ctx.font = '9px Courier New'; ctx.textAlign = 'center';
+    ctx.fillText(w.name, bx + (endX - bx) / 2, oy - 4);
+  });
+
+  enemy.weapons.forEach((w, i) => {
+    if (!w.range) return;
+    const inR  = gap <= w.range;
+    const bx   = ex - 40;
+    const endX = Math.max(bx - w.range * SCALE, px + 38);
+    const oy   = SY + oys[i % 2];
+    ctx.strokeStyle = inR ? 'rgba(255,80,80,0.60)' : 'rgba(255,80,80,0.12)';
+    ctx.lineWidth   = inR ? 2 : 1;
+    ctx.setLineDash(inR ? [] : [4, 5]);
+    ctx.beginPath(); ctx.moveTo(bx, oy); ctx.lineTo(endX, oy); ctx.stroke();
+    ctx.setLineDash([]);
+  });
+}
+
+// ── 浮動傷害數字 ──────────────────────────────
+function drawFloatingDmg() {
+  floatingDmg = floatingDmg.filter(f => f.age < 52);
+  floatingDmg.forEach(f => {
+    f.age++;
+    ctx.globalAlpha = 1 - f.age / 52;
+    ctx.fillStyle   = f.col;
+    ctx.font = `bold ${15 - Math.floor(f.age / 18)}px Courier New`;
+    ctx.textAlign = 'center';
+    ctx.fillText(f.text, f.x, f.y - f.age * 0.65);
+    ctx.globalAlpha = 1;
+  });
+}
+
+// ═══════════════════════════════════════════════
+// 武器面板
+// ═══════════════════════════════════════════════
+//
+// 佈局（左→右）：P武器0 | P武器1 ‥‥中央60px‥‥ E武器1 | E武器0
+// 每張卡寬 200px，相鄰卡間距 12px，兩側邊距 8px
+//
+//  P0: x=8       P1: x=220      E1: x=480      E0: x=692
+//  [   200  ] 12 [   200  ] 60  [   200  ] 12  [   200  ]
+//
+const P_WX = [8,   220];
+const E_WX = [692, 480]; // index 0 右側，index 1 左側
+
+function drawWeaponPanels() {
+  ctx.fillStyle = '#554433'; ctx.font = '10px Courier New';
+  ctx.textAlign = 'left';  ctx.fillText('我方武器', P_WX[0], PANEL_Y - 5);
+  ctx.textAlign = 'right'; ctx.fillText('敵方武器', E_WX[0] + 200, PANEL_Y - 5);
+
+  player.weapons.forEach((w, i) => drawWeaponCard(P_WX[i] || P_WX[0] + i*212, PANEL_Y, w, player));
+  enemy.weapons.forEach( (w, i) => drawWeaponCard(E_WX[i] || E_WX[0] - i*212, PANEL_Y, w, enemy));
+}
+
+// 每張武器卡：寬 200px，高 110px
+function drawWeaponCard(x, y, w, ship) {
+  const W    = 200, H = 110;
+  const inR  = gap <= (w.range || 0);
+  const rdy  = w.timer <= 0;
+  const col  = WCOL[w.id] || '#aa8844';
+  const dmg  = ship.calcDmg(w);
+  // DPS = 傷害 / cd（幀） × 60 = 每遊戲秒傷害
+  const dps  = w.range ? (dmg / w.cd * 60).toFixed(1) : '-';
+  // 近戰傷害以 nav 計
+  const dmgLabel = dmg.toFixed(1);
+
+  // 卡片底色 + 邊框
+  ctx.fillStyle = inR ? '#1a1000' : '#110a00';
+  ctx.strokeStyle = inR ? rgba(col, 0.5) : '#281500';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  rRect(x, y, W, H, 5);
+  ctx.fill(); ctx.stroke();
+
+  // ① 武器名稱（左）+ 狀態（右）
+  ctx.fillStyle = inR ? col : '#665544';
+  ctx.font = 'bold 13px Courier New'; ctx.textAlign = 'left';
+  ctx.fillText(w.name, x + 10, y + 19);
+
+  const sLabel = !inR ? '射程外' : (rdy ? '▐就緒▌' : 'CD');
+  const sCol   = !inR ? '#443322' : (rdy ? '#44ee88' : '#ffaa33');
+  ctx.fillStyle = sCol; ctx.font = 'bold 10px Courier New'; ctx.textAlign = 'right';
+  ctx.fillText(sLabel, x + W - 8, y + 19);
+
+  // ② 射程 + 當前距離
+  ctx.fillStyle = '#776655'; ctx.font = '10px Courier New'; ctx.textAlign = 'left';
+  ctx.fillText(`射程 ${w.range || 'N/A'}   距離 ${Math.round(gap)}`, x + 10, y + 34);
+
+  // ③ 接近度條（填滿 = 越近，越在射程核心）
+  if (w.range) {
+    const bW = W - 20;
+    ctx.fillStyle = '#1a0e00'; ctx.fillRect(x + 10, y + 40, bW, 7);
+    const prox = Math.max(0, (w.range - gap) / w.range);
+    if (prox > 0) {
+      ctx.fillStyle = inR ? rgba(col, 0.65) : '#2a1400';
+      ctx.fillRect(x + 10, y + 40, bW * prox, 7);
+    }
+    // 邊界標記線（gap = range 的位置 = 右端）
+    if (inR) {
+      ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.fillRect(x + 10 + bW - 1, y + 39, 1, 9);
+    }
+  }
+
+  // ④ 傷害/次 + DPS
+  ctx.fillStyle = '#eebb77'; ctx.font = 'bold 13px Courier New'; ctx.textAlign = 'left';
+  ctx.fillText(`傷害  ${dmgLabel}`, x + 10, y + 63);
+  ctx.fillStyle = '#aa8855'; ctx.font = '11px Courier New';
+  ctx.fillText(`DPS  ${dps}`, x + 10, y + 77);
+
+  // ⑤ CD 條（填滿 = 可開火；從左往右恢復）
+  const cdW = W - 20;
+  ctx.fillStyle = '#180e00'; ctx.fillRect(x + 10, y + 83, cdW, 8);
+  if (inR) {
+    const cdR = rdy ? 1 : 1 - w.timer / w.cd;
+    ctx.fillStyle = rdy ? '#44ee88' : rgba(col, 0.8);
+    ctx.fillRect(x + 10, y + 83, cdW * cdR, 8);
+  }
+  ctx.fillStyle = '#776655'; ctx.font = '9px Courier New'; ctx.textAlign = 'right';
+  if (inR) ctx.fillText(rdy ? '可開火' : `${(w.timer / 60).toFixed(1)}s`, x + W - 8, y + 100);
+}
+
+// ── 戰鬥紀錄 ──────────────────────────────────
+function drawCombatLog() {
+  ctx.fillStyle = '#443322'; ctx.font = '10px Courier New';
+  ctx.textAlign = 'left'; ctx.fillText('━ 紀錄', 10, LOG_Y - 4);
+
+  combatLog.forEach((e, i) => {
+    e.age++;
+    ctx.globalAlpha = Math.max(0.12, 1 - e.age / 200);
+    ctx.fillStyle   = e.isPlayer ? '#88cc66' : '#cc5544';
+    ctx.font        = '11px Courier New'; ctx.textAlign = 'left';
+    ctx.fillText(e.text, 10, LOG_Y + 12 + i * 14);
+    ctx.globalAlpha = 1;
+  });
+}
+
+// ═══════════════════════════════════════════════
+// 結束畫面
+// ═══════════════════════════════════════════════
+
+function endGame(win) {
+  if (phase !== 'combat') return;
+  phase = 'end';
+  const sec = (fightDuration / 60 / 2).toFixed(1);
+  document.getElementById('ot').textContent = win ? '勝利' : '擊毀';
+  document.getElementById('ot').style.color  = win ? '#44ff88' : '#ff4444';
+  document.getElementById('ostats').innerHTML =
+    `${win ? '擊毀敵車' : '我方報廢'}　戰鬥時長 ${sec} 秒<br>` +
+    `我方輸出 ${Math.round(player.totalDmgOut)} 傷害　${player.hitCount} 次命中<br>` +
+    `我方承受 ${Math.round(player.totalDmgIn)} 傷害　剩餘 HP ${Math.round(player.hp)} / ${player.maxHp}`;
+  document.getElementById('ov').style.display = 'flex';
+}
+
+// ═══════════════════════════════════════════════
+// 工具
+// ═══════════════════════════════════════════════
+
+function rgba(hex, a) {
+  const n = parseInt(hex.replace('#', ''), 16);
+  return `rgba(${(n>>16)&0xff},${(n>>8)&0xff},${n&0xff},${a})`;
+}
+function darker(hex, f) {
+  const n = parseInt(hex.replace('#', ''), 16);
+  return `rgb(${Math.round(((n>>16)&0xff)*f)},${Math.round(((n>>8)&0xff)*f)},${Math.round((n&0xff)*f)})`;
+}
+function rRect(x, y, w, h, r) {
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+</script>
+</body>
+</html>
