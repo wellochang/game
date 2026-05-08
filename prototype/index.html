@@ -7,13 +7,15 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#0e0900;display:flex;flex-direction:column;align-items:center;
-     justify-content:center;min-height:100vh;font-family:'Courier New',monospace;color:#ddd}
+     justify-content:center;min-height:100vh;font-family:'Courier New',monospace;
+     color:#ddd;overflow-x:hidden}
 
-#sel{text-align:center}
-h1{font-size:22px;color:#e8a040;margin-bottom:6px;letter-spacing:3px}
-.sub{font-size:12px;color:#664433;margin-bottom:28px}
-.cards{display:flex;gap:16px;justify-content:center;flex-wrap:wrap}
-.card{background:#120b00;border:2px solid #2e1e00;padding:22px 18px;width:220px;
+#sel{text-align:center;width:100%;padding:24px 16px}
+h1{font-size:clamp(16px,5vw,22px);color:#e8a040;margin-bottom:6px;letter-spacing:3px}
+.sub{font-size:12px;color:#664433;margin-bottom:24px}
+.cards{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.card{background:#120b00;border:2px solid #2e1e00;padding:18px 16px;
+      width:min(220px,calc(100vw - 40px));
       cursor:pointer;text-align:left;transition:.12s}
 .card:hover{background:#1c1200}
 .card .cn{font-size:16px;font-weight:bold;margin-bottom:8px}
@@ -21,13 +23,21 @@ h1{font-size:22px;color:#e8a040;margin-bottom:6px;letter-spacing:3px}
 .card .cs{font-size:11px;color:#997744;margin-bottom:2px}
 .card .cw{font-size:11px;color:#cc8833;margin-top:5px}
 
-#game{display:none;flex-direction:column;align-items:center}
-canvas{display:block}
+/* canvas 縮放：內部解析度維持 900×430，CSS 依視窗寬度等比縮放 */
+#game{display:none;flex-direction:column;align-items:center;
+      width:100%;max-width:900px}
+canvas{display:block;width:100%;aspect-ratio:900/430}
+
+/* 橫置提示（直向窄螢幕才顯示） */
+#rotate-hint{display:none;font-size:11px;color:#664433;margin-top:8px;text-align:center}
+@media (orientation:portrait) and (max-width:600px){
+  #rotate-hint{display:block}
+}
 
 #ov{position:fixed;inset:0;display:none;align-items:center;justify-content:center;
-    background:rgba(0,0,0,.82);flex-direction:column;gap:12px}
-#ov h2{font-size:36px;letter-spacing:5px}
-#ov .stats{font-size:13px;color:#aa8855;text-align:center;line-height:2.2}
+    background:rgba(0,0,0,.82);flex-direction:column;gap:12px;padding:20px}
+#ov h2{font-size:clamp(22px,6vw,36px);letter-spacing:5px}
+#ov .stats{font-size:clamp(11px,3vw,13px);color:#aa8855;text-align:center;line-height:2.2}
 #ov button{margin-top:6px;background:#120900;border:1px solid #443322;color:#ccaa88;
            padding:9px 28px;cursor:pointer;font-family:inherit;font-size:13px;letter-spacing:1px}
 #ov button:hover{background:#1e1200}
@@ -39,7 +49,10 @@ canvas{display:block}
   <p class="sub">選擇流派，觀察數值計算的戰鬥結果</p>
   <div class="cards" id="cards"></div>
 </div>
-<div id="game"><canvas id="c" width="900" height="430"></canvas></div>
+<div id="game">
+  <canvas id="c" width="900" height="430"></canvas>
+  <p id="rotate-hint">↺ 建議橫置裝置以獲得最佳體驗</p>
+</div>
 <div id="ov">
   <h2 id="ot"></h2>
   <div class="stats" id="ostats"></div>
