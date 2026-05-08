@@ -2,7 +2,6 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>空艇 — 戰鬥原型 v0.3</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -21,12 +20,8 @@ h1{font-size:22px;color:#aacff0;margin-bottom:6px;letter-spacing:3px}
 .card .cs{font-size:11px;color:#5599bb;margin-bottom:2px}
 .card .cw{font-size:11px;color:#bb8833;margin-top:5px}
 
-#game{display:none;flex-direction:column;align-items:center;width:100%}
-canvas{display:block;width:min(900px,100vw);aspect-ratio:900/430}
-@media(max-width:720px){
-  .cards{flex-direction:column;align-items:center;padding:0 16px}
-  .card{width:100%;max-width:360px}
-}
+#game{display:none;flex-direction:column;align-items:center}
+canvas{display:block}
 
 #ov{position:fixed;inset:0;display:none;align-items:center;justify-content:center;
     background:rgba(0,0,0,.78);flex-direction:column;gap:12px}
@@ -147,6 +142,22 @@ const ctx    = canvas.getContext('2d');
 let player, enemy, gap, phase, frame, buildId;
 let combatLog = [];
 let fightDuration = 0;
+let worldX = 0; // 背景捲動用
+
+// 背景元素（模組層初始化，避免每幀重建）
+const CLOUDS = Array.from({length:14}, () => ({
+  wx: Math.random() * 2400,
+  y:  50 + Math.random() * 70,
+  rw: 50 + Math.random() * 110,
+  rh: 12 + Math.random() * 22,
+  spd: 0.12 + Math.random() * 0.1
+}));
+const GROUND_LINES = Array.from({length:20}, (_,i) => ({
+  wx: i * 130 + Math.random() * 60,
+  len: 20 + Math.random() * 50,
+  y: 3 + Math.random() * 18,
+  spd: 0.6 + Math.random() * 0.4
+}));
 
 // ═══════════════════════════════════
 // 建立選擇介面
@@ -181,6 +192,7 @@ function startGame(id) {
   phase  = 'combat';
   combatLog = [];
   fightDuration = 0;
+  worldX = 0;
   frame  = 0;
   document.getElementById('sel').style.display  = 'none';
   document.getElementById('game').style.display = 'flex';
@@ -215,6 +227,7 @@ function tick() {
   const pSpd = playerEffSpd();
   const eSpd = enemyEffSpd();
   gap = Math.max(0, Math.min(720, gap + (eSpd - pSpd)));
+  worldX += (pSpd + eSpd) / 2; // 背景捲動速度 = 兩艇平均速度
 
   fire(player, enemy);
   fire(enemy,  player);
@@ -262,27 +275,22 @@ function addLog(text, isPlayer) {
 // 渲染
 // ═══════════════════════════════════
 
-const TX = 60, TW = 780, TY = 195, MAXG = 660;
+const SCALE = 0.72; // gap 單位 → 螢幕像素
+const SY    = 175;  // 艇的 Y 座標
+const GY    = 228;  // 地面 Y 座標
 
 function render() {
   ctx.fillStyle = '#06060f'; ctx.fillRect(0, 0, 900, 430);
-  drawSky();
+  drawChaseScene();
   drawHpRows();
-  drawTrack();
   drawWeaponPanel();
   drawLog();
 }
 
-function drawSky() {
-  const g = ctx.createLinearGradient(0,0,0,170);
-  g.addColorStop(0,'#080620'); g.addColorStop(1,'#0c0920');
-  ctx.fillStyle = g; ctx.fillRect(0,0,900,170);
-}
-
 // ── HP 列 ──
 function drawHpRows() {
-  drawHpBar(40,  18, 300, 20, player, true);
-  drawHpBar(560, 18, 300, 20, enemy,  false);
+  drawHpBar(40,  8, 300, 20, player, true);
+  drawHpBar(560, 8, 300, 20, enemy,  false);
 }
 
 function drawHpBar(x, y, w, h, ship, left) {
@@ -296,70 +304,127 @@ function drawHpBar(x, y, w, h, ship, left) {
   }
   ctx.fillStyle = ship.color; ctx.font = 'bold 12px Courier New';
   ctx.textAlign = left ? 'left' : 'right';
-  ctx.fillText(ship.name, left ? x : x+w, y - 4);
+  ctx.fillText(ship.name, left ? x : x+w, y - 3);
   ctx.fillStyle = '#667'; ctx.font = '11px Courier New';
   ctx.fillText(`${Math.round(ship.hp)} / ${ship.maxHp}`, left ? x+3 : x+w-3, y+h-3);
 }
 
-// ── 距離軌道 ──
-function drawTrack() {
-  // 背景
-  ctx.fillStyle = '#080812'; ctx.fillRect(TX-8, TY-55, TW+16, 110);
-  ctx.strokeStyle = '#141422'; ctx.lineWidth = 1; ctx.strokeRect(TX-8, TY-55, TW+16, 110);
+// ── 追趕場景（取代舊的 drawSky + drawTrack）──
+function drawChaseScene() {
+  // 兩艇螢幕 X：以畫面中心為基準，gap 決定間距
+  const half  = gap * SCALE / 2;
+  const px    = 450 - half;  // 我方（後方）
+  const ex    = 450 + half;  // 敵方（前方）
 
-  // 武器射程帶（玩家，從左往右）
-  const sw = [...player.weapons].sort((a,b)=>(b.range||0)-(a.range||0));
-  for (const w of sw) {
-    if (!w.range) continue;
-    const rx = TX + Math.min(w.range / MAXG * TW, TW);
-    const inR = gap <= w.range;
-    const col = WCOL[w.id] || '#aaa';
-    ctx.fillStyle   = inR ? rgba(col, 0.14) : rgba(col, 0.04);
-    ctx.fillRect(TX, TY-55, rx-TX, 110);
-    ctx.strokeStyle = inR ? rgba(col, 0.7) : rgba(col, 0.18);
-    ctx.lineWidth   = inR ? 1.5 : 1;
-    ctx.setLineDash([4,5]);
-    ctx.beginPath(); ctx.moveTo(rx, TY-55); ctx.lineTo(rx, TY+55); ctx.stroke();
+  drawScrollingBg(px, ex);
+  drawRangeBeams(px, ex);
+  drawShipIcon(px, SY, player, true);
+  drawShipIcon(ex, SY, enemy,  false);
+  drawChaseHud(px, ex);
+}
+
+function drawScrollingBg(px, ex) {
+  // 天空漸層
+  const sky = ctx.createLinearGradient(0, 35, 0, GY);
+  sky.addColorStop(0, '#070520'); sky.addColorStop(1, '#0b0826');
+  ctx.fillStyle = sky; ctx.fillRect(0, 35, 900, GY - 35);
+
+  // 捲動雲層（視差）
+  CLOUDS.forEach(c => {
+    const sx = ((c.wx - worldX * c.spd) % 2400 + 2400) % 2400 - 120;
+    ctx.fillStyle = 'rgba(170,180,255,0.045)';
+    ctx.beginPath(); ctx.ellipse(sx, c.y, c.rw/2, c.rh/2, 0, 0, Math.PI*2); ctx.fill();
+  });
+
+  // 地面區塊
+  ctx.fillStyle = '#060516'; ctx.fillRect(0, GY, 900, 430 - GY);
+  ctx.strokeStyle = '#14112e'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, GY); ctx.lineTo(900, GY); ctx.stroke();
+
+  // 地面速度線（向左流動，表示向右飛行）
+  GROUND_LINES.forEach(ln => {
+    const sx = ((ln.wx - worldX * ln.spd) % 1200 + 1200) % 1200;
+    ctx.strokeStyle = 'rgba(100,80,180,0.12)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(sx, GY + ln.y); ctx.lineTo(sx - ln.len, GY + ln.y); ctx.stroke();
+  });
+
+  // 引擎尾焰（兩艇船尾）
+  drawExhaust(px - 30, SY, player.color);
+  drawExhaust(ex + 30, SY, enemy.color);
+}
+
+function drawExhaust(x, y, col) {
+  const len = 18 + Math.random() * 14;
+  const grd = ctx.createLinearGradient(x, y, x - len, y);
+  grd.addColorStop(0, rgba(col, 0.55));
+  grd.addColorStop(1, rgba(col, 0));
+  ctx.fillStyle = grd;
+  ctx.beginPath();
+  ctx.moveTo(x,   y - 4);
+  ctx.lineTo(x - len, y - 1);
+  ctx.lineTo(x - len, y + 1);
+  ctx.lineTo(x,   y + 4);
+  ctx.closePath();
+  ctx.fill();
+}
+
+// 射程光束：從船頭延伸到武器最大射程，在射程內時亮起
+function drawRangeBeams(px, ex) {
+  const offsets = [-8, 8]; // 多條武器錯開垂直位置
+
+  // 我方武器（向右延伸，從船頭出發）
+  player.weapons.forEach((w, i) => {
+    if (!w.range) return;
+    const inR   = gap <= w.range;
+    const col   = WCOL[w.id] || '#aaa';
+    const beamX = px + 42;                          // 船頭起點
+    const endX  = Math.min(beamX + w.range * SCALE, ex - 35); // 最遠到敵艇
+    const oy    = SY + offsets[i % 2];
+
+    ctx.strokeStyle = inR ? rgba(col, 0.65) : rgba(col, 0.15);
+    ctx.lineWidth   = inR ? 2 : 1;
+    ctx.setLineDash(inR ? [] : [4, 5]);
+    ctx.beginPath(); ctx.moveTo(beamX, oy); ctx.lineTo(endX, oy); ctx.stroke();
     ctx.setLineDash([]);
-    ctx.fillStyle   = inR ? rgba(col, 0.9) : rgba(col, 0.35);
-    ctx.font = '10px Courier New'; ctx.textAlign = 'center';
-    ctx.fillText(`${w.name} ${w.range}`, rx, TY + 66);
-  }
 
-  // Missiler 安全帶標示
-  if (buildId === 'missiler') {
-    const x1 = TX + 320/MAXG*TW, x2 = TX + 540/MAXG*TW;
-    ctx.fillStyle   = 'rgba(60,180,60,0.07)'; ctx.fillRect(x1, TY-55, x2-x1, 110);
-    ctx.strokeStyle = 'rgba(60,180,60,0.22)'; ctx.lineWidth = 1;
-    ctx.strokeRect(x1, TY-55, x2-x1, 110);
-    ctx.fillStyle   = 'rgba(60,180,60,0.5)'; ctx.font='9px Courier New'; ctx.textAlign='center';
-    ctx.fillText('安全帶', (x1+x2)/2, TY-44);
-  }
+    // 在射程末端標示
+    ctx.fillStyle = inR ? rgba(col, 0.8) : rgba(col, 0.25);
+    ctx.font = '9px Courier New'; ctx.textAlign = 'center';
+    ctx.fillText(w.name, beamX + (endX-beamX)/2, oy - 5);
+  });
 
-  // 中心線
-  ctx.strokeStyle = '#141428'; ctx.lineWidth = 1; ctx.setLineDash([]);
-  ctx.beginPath(); ctx.moveTo(TX, TY); ctx.lineTo(TX+TW, TY); ctx.stroke();
+  // 敵方武器（向左延伸）
+  enemy.weapons.forEach((w, i) => {
+    if (!w.range) return;
+    const inR   = gap <= w.range;
+    const beamX = ex - 42;
+    const endX  = Math.max(beamX - w.range * SCALE, px + 35);
+    const oy    = SY + offsets[i % 2];
 
-  // 距離標籤
-  const ex = TX + Math.min(gap / MAXG * TW, TW - 8);
-  if (gap > 40) {
-    ctx.fillStyle = 'rgba(110,110,160,0.5)'; ctx.font='bold 12px Courier New'; ctx.textAlign='center';
-    ctx.fillText(`${Math.round(gap)}`, (TX+8+ex)/2, TY - 36);
-    ctx.strokeStyle = 'rgba(110,110,160,0.2)'; ctx.lineWidth=1; ctx.setLineDash([3,5]);
-    ctx.beginPath(); ctx.moveTo(TX+32, TY-26); ctx.lineTo(ex-28, TY-26); ctx.stroke();
+    ctx.strokeStyle = inR ? 'rgba(255,80,80,0.6)' : 'rgba(255,80,80,0.12)';
+    ctx.lineWidth   = inR ? 2 : 1;
+    ctx.setLineDash(inR ? [] : [4, 5]);
+    ctx.beginPath(); ctx.moveTo(beamX, oy); ctx.lineTo(endX, oy); ctx.stroke();
+    ctx.setLineDash([]);
+  });
+}
+
+function drawChaseHud(px, ex) {
+  // 距離標籤（兩艇中間上方）
+  if (gap > 20) {
+    const midX = (px + ex) / 2;
+    ctx.fillStyle = 'rgba(120,115,170,0.6)'; ctx.font = 'bold 12px Courier New'; ctx.textAlign = 'center';
+    ctx.fillText(`${Math.round(gap)}`, midX, SY - 52);
+    ctx.strokeStyle = 'rgba(100,95,150,0.2)'; ctx.lineWidth = 1; ctx.setLineDash([2,5]);
+    ctx.beginPath(); ctx.moveTo(px+44, SY-44); ctx.lineTo(ex-40, SY-44); ctx.stroke();
     ctx.setLineDash([]);
   }
-
-  // 速度差指示
-  const pS = playerEffSpd(), eS = enemyEffSpd(), dS = eS - pS;
-  const dxPerF = dS; // gap change per tick
-  ctx.fillStyle = 'rgba(100,100,140,0.55)'; ctx.font='10px Courier New'; ctx.textAlign='center';
-  const arrow = dxPerF < -0.05 ? '▼ 縮短' : dxPerF > 0.05 ? '▲ 增加' : '= 維持';
-  ctx.fillText(`我 ${pS.toFixed(1)}/幀   敵 ${eS.toFixed(1)}/幀   距離 ${arrow}`, 450, TY-52);
-
-  // 艇圖示
-  drawShipIcon(TX + 8,  TY, player, true);
-  drawShipIcon(ex,      TY, enemy,  false);
+  // 速度差
+  const pS = playerEffSpd(), eS = enemyEffSpd(), d = eS - pS;
+  const arrow = d < -0.05 ? '▼縮短' : d > 0.05 ? '▲增加' : '=維持';
+  ctx.fillStyle = 'rgba(90,85,130,0.55)'; ctx.font = '10px Courier New'; ctx.textAlign = 'center';
+  ctx.fillText(`我 ${pS.toFixed(1)}/幀   敵 ${eS.toFixed(1)}/幀   距離 ${arrow}`, 450, GY + 32);
 }
 
 function drawShipIcon(x, y, ship, faceRight) {
