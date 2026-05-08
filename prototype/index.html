@@ -2,6 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>空艇 — 戰鬥原型 v0.3</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -20,8 +21,12 @@ h1{font-size:22px;color:#aacff0;margin-bottom:6px;letter-spacing:3px}
 .card .cs{font-size:11px;color:#5599bb;margin-bottom:2px}
 .card .cw{font-size:11px;color:#bb8833;margin-top:5px}
 
-#game{display:none;flex-direction:column;align-items:center}
-canvas{display:block}
+#game{display:none;flex-direction:column;align-items:center;width:100%}
+canvas{display:block;width:min(900px,100vw);aspect-ratio:900/430}
+@media(max-width:720px){
+  .cards{flex-direction:column;align-items:center;padding:0 16px}
+  .card{width:100%;max-width:360px}
+}
 
 #ov{position:fixed;inset:0;display:none;align-items:center;justify-content:center;
     background:rgba(0,0,0,.78);flex-direction:column;gap:12px}
