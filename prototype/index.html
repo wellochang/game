@@ -41,6 +41,14 @@ canvas{display:block;width:100%;aspect-ratio:900/430}
 #ov button{margin-top:6px;background:#120900;border:1px solid #443322;color:#ccaa88;
            padding:9px 28px;cursor:pointer;font-family:inherit;font-size:13px;letter-spacing:1px}
 #ov button:hover{background:#1e1200}
+
+#logpanel{width:100%;max-height:220px;overflow-y:auto;background:#060400;
+  border:1px solid #1e1000;margin-top:6px;padding:6px 10px;
+  font-size:11px;line-height:1.85;color:#554422}
+#logpanel .lhdr{color:#664422;margin-bottom:2px;border-bottom:1px solid #1e1000;padding-bottom:2px}
+#logpanel .plog{color:#88cc66}
+#logpanel .elog{color:#cc5544}
+#logpanel .slog{color:#554422}
 </style>
 </head>
 <body>
@@ -52,6 +60,7 @@ canvas{display:block;width:100%;aspect-ratio:900/430}
 <div id="game">
   <canvas id="c" width="900" height="430"></canvas>
   <p id="rotate-hint">↺ 建議橫置裝置以獲得最佳體驗</p>
+  <div id="logpanel"><div class="lhdr">━ 詳細戰鬥紀錄</div></div>
 </div>
 <div id="ov">
   <h2 id="ot"></h2>
@@ -210,6 +219,21 @@ function startGame(id) {
   worldX        = 0;
   floatingDmg   = [];
   frame         = 0;
+
+  const panel = document.getElementById('logpanel');
+  panel.innerHTML = '<div class="lhdr">━ 詳細戰鬥紀錄</div>';
+  const pWpns = player.weapons.map(w => {
+    const d = w.melee ? '10+Nav×5' : `基礎${w.dmg}`;
+    return `${w.name}(射程${w.range ?? 'N/A'},CD${w.cd},${d})`;
+  }).join(' + ');
+  const eWpns = enemy.weapons.map(w => {
+    const d = w.melee ? '10+Nav×5' : `基礎${w.dmg}`;
+    return `${w.name}(射程${w.range ?? 'N/A'},CD${w.cd},${d})`;
+  }).join(' + ');
+  appendLog(`玩家: ${player.name}  HP=${player.maxHp}  速度=${player.baseSpd.toFixed(2)}  [${pWpns}]`, 'plog');
+  appendLog(`敵方: ${enemy.name}  HP=${enemy.maxHp}  速度=${enemy.baseSpd.toFixed(2)}  [${eWpns}]`, 'elog');
+  appendLog(`初始 gap=400  targetGap=${player.targetGap}  fleeGap=${player.fleeGap}`, 'slog');
+
   document.getElementById('sel').style.display  = 'none';
   document.getElementById('game').style.display = 'flex';
   requestAnimationFrame(loop);
@@ -243,6 +267,7 @@ function tick() {
   const eSpd = enemyEffSpd();
   gap = Math.max(0, Math.min(720, gap + (eSpd - pSpd)));
   worldX += pSpd;
+  if (fightDuration % 120 === 0) logStatus(pSpd, eSpd);
   fire(player, enemy);
   fire(enemy,  player);
   if (enemy.hp  <= 0 && phase === 'combat') endGame(true);
@@ -264,13 +289,33 @@ function fire(src, tgt) {
   for (const w of src.weapons) {
     if (w.timer <= 0 && gap <= (w.range || 0)) {
       const raw = src.calcDmg(w);
-      const dmg = raw * (0.9 + Math.random() * 0.2);
+      const rnd = 0.9 + Math.random() * 0.2;
+      const dmg = raw * rnd;
+      const hpBefore = Math.round(tgt.hp);
       tgt.hp = Math.max(0, tgt.hp - dmg);
+      const hpAfter  = Math.round(tgt.hp);
       tgt.hitFlash     = 7;
       src.totalDmgOut += dmg;
       tgt.totalDmgIn  += dmg;
       src.hitCount++;
       addLog(`${src.isPlayer ? '▶' : '◀'} ${w.name}  −${Math.round(dmg)}`, src.isPlayer);
+
+      let formula;
+      if (w.melee) {
+        formula = `(10+Nav${src.nav}×5)=${raw.toFixed(1)}`;
+      } else {
+        const sv = w.scale === 'gun' ? src.gun : src.nav;
+        const sl = w.scale === 'gun' ? `Gun${src.gun}` : `Nav${src.nav}`;
+        formula = `${w.dmg}×(1+${sl}×.12)=${raw.toFixed(1)}`;
+      }
+      const t = String(fightDuration).padStart(5);
+      const g = String(Math.round(gap)).padStart(3);
+      const tl = tgt.isPlayer ? '玩HP' : '敵HP';
+      appendLog(
+        `[t=${t}] ${src.isPlayer ? '▶我方' : '◀敵方'} ${w.name}  gap=${g}  ${formula} ×${rnd.toFixed(3)}=-${Math.round(dmg)}  ${tl}:${hpBefore}→${hpAfter}`,
+        src.isPlayer ? 'plog' : 'elog'
+      );
+
       floatingDmg.push({
         x: tgt.isPlayer ? playerSX : enemySX,
         y: SY - 30,
@@ -286,6 +331,28 @@ function fire(src, tgt) {
 function addLog(text, isPlayer) {
   combatLog.unshift({ text, isPlayer, age: 0 });
   if (combatLog.length > 4) combatLog.pop();
+}
+
+function appendLog(text, cls) {
+  const panel = document.getElementById('logpanel');
+  const div = document.createElement('div');
+  if (cls) div.className = cls;
+  div.textContent = text;
+  panel.appendChild(div);
+  panel.scrollTop = panel.scrollHeight;
+}
+
+function logStatus(pSpd, eSpd) {
+  const pMode = gap > player.targetGap + 30 ? '追'
+              : (player.fleeGap > 0 && gap < player.fleeGap ? '逃' : '維持');
+  const eMode = gap < 120 ? '逃' : (gap > 300 ? '待' : '進');
+  const delta = eSpd - pSpd;
+  const t = String(fightDuration).padStart(5);
+  const g = String(Math.round(gap)).padStart(3);
+  appendLog(
+    `[t=${t}] ── gap=${g}  玩家${pSpd.toFixed(2)}/t(${pMode})  敵方${eSpd.toFixed(2)}/t(${eMode})  Δgap/t${delta >= 0 ? '+' : ''}${delta.toFixed(2)}`,
+    'slog'
+  );
 }
 
 // ═══════════════════════════════════════════════
