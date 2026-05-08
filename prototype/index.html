@@ -227,7 +227,7 @@ function tick() {
   const pSpd = playerEffSpd();
   const eSpd = enemyEffSpd();
   gap = Math.max(0, Math.min(720, gap + (eSpd - pSpd)));
-  worldX += (pSpd + eSpd) / 2; // 背景捲動速度 = 兩艇平均速度
+  worldX += pSpd; // 相機跟著玩家，背景捲動速度 = 玩家速度
 
   fire(player, enemy);
   fire(enemy,  player);
@@ -311,15 +311,14 @@ function drawHpBar(x, y, w, h, ship, left) {
 
 // ── 追趕場景（取代舊的 drawSky + drawTrack）──
 function drawChaseScene() {
-  // 兩艇螢幕 X：以畫面中心為基準，gap 決定間距
-  const half  = gap * SCALE / 2;
-  const px    = 450 - half;  // 我方（後方）
-  const ex    = 450 + half;  // 敵方（前方）
+  // 相機跟著玩家：玩家固定在螢幕 x=220，敵方在玩家前方 gap 距離
+  const px = 220;
+  const ex = px + gap * SCALE;
 
   drawScrollingBg(px, ex);
   drawRangeBeams(px, ex);
-  drawShipIcon(px, SY, player, true);
-  drawShipIcon(ex, SY, enemy,  false);
+  drawShipIcon(px, SY, player);
+  drawShipIcon(ex, SY, enemy);
   drawChaseHud(px, ex);
 }
 
@@ -349,9 +348,9 @@ function drawScrollingBg(px, ex) {
     ctx.beginPath(); ctx.moveTo(sx, GY + ln.y); ctx.lineTo(sx - ln.len, GY + ln.y); ctx.stroke();
   });
 
-  // 引擎尾焰（兩艇船尾）
+  // 引擎尾焰（船尾，兩艇都在各自的左側）
   drawExhaust(px - 30, SY, player.color);
-  drawExhaust(ex + 30, SY, enemy.color);
+  drawExhaust(ex - 30, SY, enemy.color);
 }
 
 function drawExhaust(x, y, col) {
@@ -427,10 +426,10 @@ function drawChaseHud(px, ex) {
   ctx.fillText(`我 ${pS.toFixed(1)}/幀   敵 ${eS.toFixed(1)}/幀   距離 ${arrow}`, 450, GY + 32);
 }
 
-function drawShipIcon(x, y, ship, faceRight) {
+function drawShipIcon(x, y, ship) {
   ctx.save();
   ctx.translate(x, y);
-  if (!faceRight) ctx.scale(-1, 1);
+  // 兩艇都面朝右（同方向飛行），不再鏡像翻轉
   if (ship.hitFlash > 0) ctx.filter = 'brightness(2.8)';
 
   ctx.fillStyle   = ship.color;
