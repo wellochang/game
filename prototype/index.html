@@ -146,41 +146,49 @@ const LOG_Y   = 358;
 // 資料定義
 // ═══════════════════════════════════════════════
 const CHASSIS = {
-  light:  { name:'輕型突擊', spd:4.8, hp:100, capacity:6,  color:'#FF7744',
+  light:  { name:'輕型突擊', spd:4.8, hp:100, capacity:20, color:'#FF7744',
             desc:'速度最快，容量最小\n靠速度主動決勝' },
-  medium: { name:'中型通用', spd:3.4, hp:160, capacity:10, color:'#44AAFF',
+  medium: { name:'中型通用', spd:3.4, hp:160, capacity:36, color:'#44AAFF',
             desc:'均衡配置\n適合各種戰術組合' },
-  heavy:  { name:'重型堡壘', spd:2.2, hp:220, capacity:16, color:'#AA8855',
+  heavy:  { name:'重型堡壘', spd:2.2, hp:220, capacity:56, color:'#AA8855',
             desc:'HP最厚，容量最大\n慢速但火力全開' },
 };
 
-// weight = 武器重量（影響可帶幾件）
+// weight = 武器重量；cd = ticks（120t = 1秒）
 const WDEFS = {
-  shotgun:     { name:'散彈',   weight:1, range:90,  cd:25,  dmg:10 },
-  subCannon:   { name:'副砲',   weight:2, range:155, cd:38,  dmg:16 },
-  missile:     { name:'飛彈',   weight:2, range:540, cd:180, dmg:48 },
-  cannon:      { name:'機砲',   weight:3, range:320, cd:80,  dmg:22 },
-  ram:         { name:'衝角',   weight:4, range:52,  cd:38,  melee:true },
-  heavyCannon: { name:'重砲',   weight:5, range:400, cd:110, dmg:38 },
+  // ── Cannon T1
+  lightCannon:  { name:'輕型前砲', nameEn:'Light Cannon',     type:'cannon',    tier:1, weight:10, range:260, cd:144, dmg:10 },
+  heavyCannon:  { name:'重型艦砲', nameEn:'Heavy Cannon',     type:'cannon',    tier:1, weight:20, range:260, cd:240, dmg:21 },
+  // ── Sub Cannon T1
+  subCannon:    { name:'短管副砲', nameEn:'Sub Cannon',       type:'subcannon', tier:1, weight:6,  range:110, cd:96,  dmg:8  },
+  rapidSub:     { name:'連射副砲', nameEn:'Rapid Sub',        type:'subcannon', tier:1, weight:7,  range:110, cd:60,  dmg:5  },
+  // ── Missile T1
+  torpedo:      { name:'標準魚雷', nameEn:'Standard Torpedo', type:'missile',   tier:1, weight:12, range:560, cd:360, dmg:16 },
+  lightMortar:  { name:'輕型迫擊', nameEn:'Light Mortar',     type:'missile',   tier:1, weight:9,  range:400, cd:300, dmg:12 },
+  // ── Ram T1
+  batteringRam: { name:'標準撞角', nameEn:'Battering Ram',    type:'ram',       tier:1, weight:18, range:52,  cd:60,  melee:true, ramMult:15 },
+  lightProw:    { name:'輕型船首', nameEn:'Light Prow',       type:'ram',       tier:1, weight:10, range:52,  cd:60,  melee:true, ramMult:10 },
 };
 
 const WCOL = {
-  cannon:'#FFD700', subCannon:'#FFA040', missile:'#FF3366',
-  heavyCannon:'#FF8C00', ram:'#cc6622', shotgun:'#CC9944'
+  lightCannon:'#FFD700',  heavyCannon:'#FF8C00',
+  subCannon:'#FFA040',    rapidSub:'#FFB870',
+  torpedo:'#FF3366',      lightMortar:'#FF6699',
+  batteringRam:'#cc6622', lightProw:'#aa5511',
 };
 
-// 重量驗證：medium cap=10, light cap=6, heavy cap=16
+// 重量驗證：medium cap=36, light cap=20, heavy cap=56
 const ENEMY1_DEF = {
   name:'攔截車', chassisId:'medium', color:'#FF5555',
-  weapons:['cannon','heavyCannon','subCannon']   // 3+5+2 = 10
+  weapons:['heavyCannon','subCannon','rapidSub']  // 20+6+7 = 33
 };
 const ENEMY2_POOL = [
   { name:'飛彈狙擊', chassisId:'light',  color:'#FF44BB',
-    weapons:['missile','cannon','shotgun'] },     // 2+3+1 = 6
+    weapons:['torpedo','rapidSub'] },              // 12+7 = 19
   { name:'重裝堡壘', chassisId:'heavy',  color:'#FF6644',
-    weapons:['heavyCannon','heavyCannon','cannon','subCannon','shotgun'] }, // 5+5+3+2+1 = 16
+    weapons:['heavyCannon','heavyCannon','subCannon','rapidSub'] }, // 20+20+6+7 = 53
   { name:'衝撞獵手', chassisId:'light',  color:'#FF8844',
-    weapons:['ram','subCannon'] },               // 4+2 = 6
+    weapons:['lightProw','rapidSub'] },            // 10+7 = 17
 ];
 
 // ═══════════════════════════════════════════════
@@ -211,7 +219,7 @@ class Ship {
     this.hitCount    = 0;
   }
   calcDmg(w) {
-    return w.melee ? this.baseSpd * 8 : w.dmg;
+    return w.melee ? this.baseSpd * w.ramMult : w.dmg;
   }
   tick() {
     if (this.hitFlash > 0) this.hitFlash--;
@@ -284,12 +292,12 @@ function renderBuilder() {
   list.innerHTML = '';
   builderLoadout.forEach((wid, idx) => {
     const w = WDEFS[wid];
-    const dmgStr = w.melee ? 'spd×8' : w.dmg;
+    const dmgStr = w.melee ? `spd×${w.ramMult}` : w.dmg;
     const el = document.createElement('div');
     el.className = 'loadout-item';
     el.innerHTML = `
       <span class="li-name" style="color:${WCOL[wid]}">${w.name}</span>
-      <span class="li-stats">重${w.weight} 射${w.range} 傷${dmgStr} CD${w.cd}</span>
+      <span class="li-stats">重${w.weight} 傷${dmgStr} CD${w.cd===0?'無':(w.cd/120).toFixed(1)+'s'}</span>
       <span class="li-rm">✕</span>`;
     el.addEventListener('click', () => { builderLoadout.splice(idx,1); renderBuilder(); });
     list.appendChild(el);
@@ -305,18 +313,18 @@ function renderBuilder() {
     document.getElementById('loadout-stance').textContent = '';
   }
 
-  // 武器池（依重量排序，輕的在上）
+  // 武器池
   const pool = document.getElementById('weapon-pool');
   pool.innerHTML = '';
   for (const [wid, w] of Object.entries(WDEFS)) {
     const canAdd = rem >= w.weight;
-    const dps    = w.melee ? `spd×8/CD` : `${(w.dmg/w.cd*60).toFixed(0)}/s`;
+    const dps    = w.melee ? `spd×${w.ramMult}` : `${(w.dmg/w.cd*120).toFixed(0)}/s`;
     const el = document.createElement('div');
     el.className = 'pool-item' + (canAdd ? '' : ' disabled');
     el.innerHTML = `
       <span class="pi-weight" style="color:${WCOL[wid]}">重${w.weight}</span>
       <span class="pi-name"   style="color:${WCOL[wid]}">${w.name}</span>
-      <span class="pi-stats">射${w.range} 傷${w.melee?'spd×8':w.dmg} DPS ${dps}</span>`;
+      <span class="pi-stats">射${w.range} 傷${w.melee?`spd×${w.ramMult}`:w.dmg} DPS ${dps}</span>`;
     if (canAdd) el.addEventListener('click', () => { builderLoadout.push(wid); renderBuilder(); });
     pool.appendChild(el);
   }
@@ -333,8 +341,8 @@ function confirmLoadout() {
 // 戰術姿態
 // ═══════════════════════════════════════════════
 function getStance(weapons) {
-  const hasRam     = weapons.some(w => w.id === 'ram');
-  const hasMissile = weapons.some(w => w.id === 'missile');
+  const hasRam     = weapons.some(w => w.type === 'ram');
+  const hasMissile = weapons.some(w => w.type === 'missile');
   if (hasRam)     return { targetGap:30,  fleeGap:0   };
   if (hasMissile) return { targetGap:400, fleeGap:320 };
   return                 { targetGap:200, fleeGap:0   };
@@ -363,7 +371,7 @@ function startGame(chassisId, weaponIds, enemyDef, fn) {
   const panel = document.getElementById('logpanel');
   panel.innerHTML = `<div class="lhdr">━ 第${fn}關 詳細戰鬥紀錄</div>`;
   const fmtWpns = ship => ship.weapons.map(w =>
-    `${w.name}(重${WDEFS[w.id]?.weight??'?'},射${w.range},傷${w.melee?`spd×8`:w.dmg})`).join(' + ');
+    `${w.name}(重${WDEFS[w.id]?.weight??'?'},射${w.range},傷${w.melee?`spd×${w.ramMult}`:w.dmg})`).join(' + ');
   const pSt = getStance(player.weapons);
   const eSt = getStance(enemy.weapons);
   appendLog(`玩家: ${player.name}  HP=${player.maxHp}  速度=${player.baseSpd.toFixed(1)}  [${fmtWpns(player)}]`, 'plog');
@@ -426,9 +434,11 @@ function playerEffSpd() {
 
 function enemyEffSpd() {
   const { targetGap, fleeGap } = getStance(enemy.weapons);
-  if (fleeGap > 0 && gap < fleeGap) return enemy.baseSpd;       // 飛彈型：逃離近距
-  if (gap > targetGap + 30)         return enemy.baseSpd * 0.35; // 降速讓玩家追上
-  return enemy.baseSpd * 0.35;                                   // 在射程帶內緩速
+  const hasRam = enemy.weapons.some(w => w.type === 'ram');
+  if (fleeGap > 0 && gap < fleeGap) return enemy.baseSpd;        // 飛彈型：逃離近距
+  if (hasRam && gap > targetGap)    return enemy.baseSpd;         // 衝角型：全速衝刺
+  if (gap > targetGap + 30)         return enemy.baseSpd * 0.35;  // 其他：降速讓玩家追上
+  return enemy.baseSpd * 0.35;
 }
 
 function fire(src, tgt) {
@@ -447,7 +457,7 @@ function fire(src, tgt) {
       addLog(`${src.isPlayer?'▶':'◀'} ${w.name}  −${Math.round(dmg)}`, src.isPlayer);
 
       const formula = w.melee
-        ? `spd${src.baseSpd.toFixed(1)}×8=${raw.toFixed(1)}`
+        ? `spd${src.baseSpd.toFixed(1)}×${w.ramMult}=${raw.toFixed(1)}`
         : `基礎${w.dmg}`;
       const t  = String(fightDuration).padStart(5);
       const g  = String(Math.round(gap)).padStart(3);
@@ -644,7 +654,7 @@ function drawCarIcon(x, y, ship) {
   ctx.fillStyle='#252525'; ctx.strokeStyle='#444'; ctx.lineWidth=1;
   ctx.fillRect(29,-5,7,16); ctx.strokeRect(29,-5,7,16);
 
-  if (ship.weapons.some(w => w.id==='ram')) {
+  if (ship.weapons.some(w => w.type==='ram')) {
     ctx.fillStyle='#bbb'; ctx.strokeStyle='#888'; ctx.lineWidth=1.5;
     ctx.beginPath();
     ctx.moveTo(36,-1); ctx.lineTo(50,-5); ctx.lineTo(57,2); ctx.lineTo(50,7); ctx.lineTo(36,2);
@@ -761,7 +771,7 @@ function drawWeaponCard(x, y, w, ship) {
     ctx.fillRect(x+6, y+33, cdW*cdR, 6);
   }
   ctx.fillStyle = '#776655'; ctx.font = '9px Courier New'; ctx.textAlign = 'right';
-  if (inR && !rdy) ctx.fillText(`${(w.timer/60).toFixed(1)}s`, x+CW-5, y+47);
+  if (inR && !rdy) ctx.fillText(`${(w.timer/120).toFixed(1)}s`, x+CW-5, y+47);
 }
 
 function drawCombatLog() {
