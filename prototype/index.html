@@ -32,8 +32,10 @@ h1{font-size:clamp(16px,5vw,22px);color:#e8a040;margin-bottom:6px;letter-spacing
 #loadout-panel,#weapon-pool-panel{background:#120b00;border:1px solid #2e1e00;
   padding:14px;min-width:260px;flex:1;max-width:380px}
 
-#slot-grid{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:12px}
-.slot-box{width:28px;height:28px;border:1px solid #2e1e00;background:#0e0900;flex-shrink:0}
+/* 容量條 */
+#cap-bar-track{height:8px;background:#0e0900;border:1px solid #1e1000;margin-bottom:10px;position:relative}
+#cap-bar-fill{height:100%;width:0%;background:#446633;transition:width .15s}
+#cap-bar-label{font-size:10px;color:#664422;margin-bottom:8px;display:flex;justify-content:space-between}
 
 .loadout-item{display:flex;align-items:center;justify-content:space-between;
   padding:5px 8px;margin:3px 0;background:#1a1000;border:1px solid #2e1e00;cursor:pointer}
@@ -46,8 +48,8 @@ h1{font-size:clamp(16px,5vw,22px);color:#e8a040;margin-bottom:6px;letter-spacing
   background:#0e0900;border:1px solid #1e1000;cursor:pointer}
 .pool-item:hover:not(.disabled){background:#1a1000;border-color:#cc8833}
 .pool-item.disabled{opacity:0.35;cursor:not-allowed}
-.pool-item .pi-slots{background:#1e1200;border:1px solid #443322;color:#cc8833;
-  font-size:10px;padding:1px 5px;min-width:26px;text-align:center;flex-shrink:0}
+.pool-item .pi-weight{background:#1e1200;border:1px solid #443322;color:#cc8833;
+  font-size:10px;padding:1px 5px;min-width:32px;text-align:center;flex-shrink:0}
 .pool-item .pi-name{font-size:12px;font-weight:bold;min-width:34px}
 .pool-item .pi-stats{font-size:10px;color:#776655}
 
@@ -100,7 +102,8 @@ canvas{display:block;width:100%;aspect-ratio:900/430}
       <div class="section-lbl">已配置武器
         <span id="loadout-stance" style="float:right;color:#886644;font-size:10px"></span>
       </div>
-      <div id="slot-grid"></div>
+      <div id="cap-bar-label"><span id="cap-used">容量 0 / 0</span><span id="cap-pct"></span></div>
+      <div id="cap-bar-track"><div id="cap-bar-fill"></div></div>
       <div id="loadout-list"></div>
       <button id="confirm-btn" disabled onclick="confirmLoadout()">確認出擊 →</button>
     </div>
@@ -143,21 +146,22 @@ const LOG_Y   = 358;
 // 資料定義
 // ═══════════════════════════════════════════════
 const CHASSIS = {
-  light:  { name:'輕型突擊', spd:4.8, hp:100, slots:3, color:'#FF7744',
-            desc:'速度最快，武器格少\n靠速度主動決勝' },
-  medium: { name:'中型通用', spd:3.4, hp:160, slots:4, color:'#44AAFF',
+  light:  { name:'輕型突擊', spd:4.8, hp:100, capacity:6,  color:'#FF7744',
+            desc:'速度最快，容量最小\n靠速度主動決勝' },
+  medium: { name:'中型通用', spd:3.4, hp:160, capacity:10, color:'#44AAFF',
             desc:'均衡配置\n適合各種戰術組合' },
-  heavy:  { name:'重型堡壘', spd:2.2, hp:220, slots:6, color:'#AA8855',
-            desc:'HP最厚，武器格最多\n慢速但火力全開' },
+  heavy:  { name:'重型堡壘', spd:2.2, hp:220, capacity:16, color:'#AA8855',
+            desc:'HP最厚，容量最大\n慢速但火力全開' },
 };
 
+// weight = 武器重量（影響可帶幾件）
 const WDEFS = {
-  cannon:      { name:'機砲',   slots:1, range:320, cd:80,  dmg:22 },
-  subCannon:   { name:'副砲',   slots:1, range:155, cd:38,  dmg:16 },
-  missile:     { name:'飛彈',   slots:2, range:540, cd:180, dmg:48 },
-  heavyCannon: { name:'重砲',   slots:2, range:400, cd:110, dmg:38 },
-  ram:         { name:'衝角',   slots:1, range:52,  cd:38,  melee:true },
-  shotgun:     { name:'散彈',   slots:1, range:90,  cd:25,  dmg:10 },
+  shotgun:     { name:'散彈',   weight:1, range:90,  cd:25,  dmg:10 },
+  subCannon:   { name:'副砲',   weight:2, range:155, cd:38,  dmg:16 },
+  missile:     { name:'飛彈',   weight:2, range:540, cd:180, dmg:48 },
+  cannon:      { name:'機砲',   weight:3, range:320, cd:80,  dmg:22 },
+  ram:         { name:'衝角',   weight:4, range:52,  cd:38,  melee:true },
+  heavyCannon: { name:'重砲',   weight:5, range:400, cd:110, dmg:38 },
 };
 
 const WCOL = {
@@ -165,14 +169,18 @@ const WCOL = {
   heavyCannon:'#FF8C00', ram:'#cc6622', shotgun:'#CC9944'
 };
 
+// 重量驗證：medium cap=10, light cap=6, heavy cap=16
 const ENEMY1_DEF = {
   name:'攔截車', chassisId:'medium', color:'#FF5555',
-  weapons:['cannon','heavyCannon','subCannon']
+  weapons:['cannon','heavyCannon','subCannon']   // 3+5+2 = 10
 };
 const ENEMY2_POOL = [
-  { name:'飛彈狙擊', chassisId:'light',  color:'#FF44BB', weapons:['missile','cannon'] },
-  { name:'重裝堡壘', chassisId:'heavy',  color:'#FF6644', weapons:['heavyCannon','heavyCannon','subCannon'] },
-  { name:'衝撞獵手', chassisId:'light',  color:'#FF8844', weapons:['ram','cannon','subCannon'] },
+  { name:'飛彈狙擊', chassisId:'light',  color:'#FF44BB',
+    weapons:['missile','cannon','shotgun'] },     // 2+3+1 = 6
+  { name:'重裝堡壘', chassisId:'heavy',  color:'#FF6644',
+    weapons:['heavyCannon','heavyCannon','cannon','subCannon','shotgun'] }, // 5+5+3+2+1 = 16
+  { name:'衝撞獵手', chassisId:'light',  color:'#FF8844',
+    weapons:['ram','subCannon'] },               // 4+2 = 6
 ];
 
 // ═══════════════════════════════════════════════
@@ -242,7 +250,7 @@ let builderLoadout = [];
     el.style.borderColor = ch.color + '55';
     el.innerHTML = `
       <div class="cn" style="color:${ch.color}">${ch.name}</div>
-      <div class="cs">HP ${ch.hp} &nbsp;|&nbsp; 速度 ${ch.spd} &nbsp;|&nbsp; 武器格 ${ch.slots}</div>
+      <div class="cs">HP ${ch.hp} &nbsp;|&nbsp; 速度 ${ch.spd} &nbsp;|&nbsp; 容量 ${ch.capacity}</div>
       <div class="cd" style="white-space:pre-line">${ch.desc}</div>`;
     el.addEventListener('click', () => selectChassis(id));
     cont.appendChild(el);
@@ -259,29 +267,17 @@ function selectChassis(chassisId) {
 
 function renderBuilder() {
   const ch   = CHASSIS[builderChassis];
-  const used = builderLoadout.reduce((s, id) => s + WDEFS[id].slots, 0);
-  document.getElementById('slot-hint').textContent = `已用 ${used} / ${ch.slots} 格`;
+  const used = builderLoadout.reduce((s, id) => s + WDEFS[id].weight, 0);
+  const rem  = ch.capacity - used;
+  document.getElementById('slot-hint').textContent = `容量 ${used} / ${ch.capacity}`;
 
-  // 格子視覺
-  const grid = document.getElementById('slot-grid');
-  grid.innerHTML = '';
-  let filled = 0;
-  for (const wid of builderLoadout) {
-    const w = WDEFS[wid];
-    for (let s = 0; s < w.slots; s++) {
-      const box = document.createElement('div');
-      box.className = 'slot-box';
-      box.style.background   = WCOL[wid] + '88';
-      box.style.borderColor  = WCOL[wid] + 'aa';
-      grid.appendChild(box);
-      filled++;
-    }
-  }
-  for (let i = filled; i < ch.slots; i++) {
-    const box = document.createElement('div');
-    box.className = 'slot-box';
-    grid.appendChild(box);
-  }
+  // 容量條
+  const pct = Math.min(1, used / ch.capacity);
+  const fill = document.getElementById('cap-bar-fill');
+  fill.style.width      = (pct * 100) + '%';
+  fill.style.background = pct >= 1 ? '#cc3322' : pct > 0.75 ? '#ddaa22' : '#446633';
+  document.getElementById('cap-used').textContent = `容量 ${used} / ${ch.capacity}`;
+  document.getElementById('cap-pct').textContent  = rem > 0 ? `剩餘 ${rem}` : '已滿';
 
   // 已選清單
   const list = document.getElementById('loadout-list');
@@ -293,7 +289,7 @@ function renderBuilder() {
     el.className = 'loadout-item';
     el.innerHTML = `
       <span class="li-name" style="color:${WCOL[wid]}">${w.name}</span>
-      <span class="li-stats">${w.slots}格 射${w.range} 傷${dmgStr} CD${w.cd}</span>
+      <span class="li-stats">重${w.weight} 射${w.range} 傷${dmgStr} CD${w.cd}</span>
       <span class="li-rm">✕</span>`;
     el.addEventListener('click', () => { builderLoadout.splice(idx,1); renderBuilder(); });
     list.appendChild(el);
@@ -309,18 +305,17 @@ function renderBuilder() {
     document.getElementById('loadout-stance').textContent = '';
   }
 
-  // 武器池
+  // 武器池（依重量排序，輕的在上）
   const pool = document.getElementById('weapon-pool');
   pool.innerHTML = '';
   for (const [wid, w] of Object.entries(WDEFS)) {
-    const rem    = ch.slots - used;
-    const canAdd = rem >= w.slots;
+    const canAdd = rem >= w.weight;
     const dps    = w.melee ? `spd×8/CD` : `${(w.dmg/w.cd*60).toFixed(0)}/s`;
     const el = document.createElement('div');
     el.className = 'pool-item' + (canAdd ? '' : ' disabled');
     el.innerHTML = `
-      <span class="pi-slots" style="color:${WCOL[wid]}">${w.slots}格</span>
-      <span class="pi-name" style="color:${WCOL[wid]}">${w.name}</span>
+      <span class="pi-weight" style="color:${WCOL[wid]}">重${w.weight}</span>
+      <span class="pi-name"   style="color:${WCOL[wid]}">${w.name}</span>
       <span class="pi-stats">射${w.range} 傷${w.melee?'spd×8':w.dmg} DPS ${dps}</span>`;
     if (canAdd) el.addEventListener('click', () => { builderLoadout.push(wid); renderBuilder(); });
     pool.appendChild(el);
@@ -368,7 +363,7 @@ function startGame(chassisId, weaponIds, enemyDef, fn) {
   const panel = document.getElementById('logpanel');
   panel.innerHTML = `<div class="lhdr">━ 第${fn}關 詳細戰鬥紀錄</div>`;
   const fmtWpns = ship => ship.weapons.map(w =>
-    `${w.name}(射${w.range},CD${w.cd},傷${w.melee?'spd×8':w.dmg})`).join(' + ');
+    `${w.name}(重${WDEFS[w.id]?.weight??'?'},射${w.range},傷${w.melee?`spd×8`:w.dmg})`).join(' + ');
   const pSt = getStance(player.weapons);
   const eSt = getStance(enemy.weapons);
   appendLog(`玩家: ${player.name}  HP=${player.maxHp}  速度=${player.baseSpd.toFixed(1)}  [${fmtWpns(player)}]`, 'plog');
