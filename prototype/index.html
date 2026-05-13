@@ -76,8 +76,8 @@ button{font-family:inherit;color:inherit;cursor:pointer}
 
 /* ── Map ── */
 .map-body{flex:1;display:grid;grid-template-columns:1fr 260px;gap:14px;min-height:0}
-#map-c{display:block;width:100%;cursor:pointer;flex:1}
-.map-panel{flex:1;display:flex;flex-direction:column;overflow:hidden}
+#map-c{display:block;width:100%;flex:1;min-height:0;cursor:pointer}
+.map-panel{flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0}
 .log-panel{display:flex;flex-direction:column}
 .log-body{flex:1;padding:14px;overflow:auto;display:flex;flex-direction:column;gap:8px}
 .log-entry{font-size:15px;color:var(--dim);line-height:1.3}
@@ -93,10 +93,13 @@ button{font-family:inherit;color:inherit;cursor:pointer}
 .choices{padding:14px;border-top:2px solid var(--line);background:var(--bg2);display:flex;flex-direction:column;gap:8px;flex-shrink:0}
 
 /* ── Combat ── */
-#game{display:none;flex-direction:column;align-items:center;width:100%;max-width:900px;margin:0 auto;padding:0}
-#cc{display:block;width:100%;aspect-ratio:900/430}
-#rotate-hint{display:none;font-size:11px;color:#664433;margin-top:8px;text-align:center}
-@media(orientation:portrait)and(max-width:600px){#rotate-hint{display:block}}
+#game{display:none;flex-direction:column;width:100%;min-height:100vh;padding:20px;gap:14px}
+.enc-body{flex:1;min-height:0;display:grid;grid-template-columns:1fr 290px;gap:14px}
+.enc-hw{display:flex;flex-direction:column}
+.enc-canvas-wrap{flex:1;min-height:0;position:relative;overflow:hidden;background:#0a0604}
+#cc{position:absolute;inset:0;width:100%;height:100%;display:block;image-rendering:pixelated;image-rendering:crisp-edges}
+.enc-side{display:flex;flex-direction:column;overflow:hidden}
+.pxbtn.active{background:var(--rust);color:var(--bg0);border-color:var(--bright)}
 
 /* ── End overlay ── */
 #ov{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.82);flex-direction:column;gap:12px;padding:20px;z-index:10}
@@ -153,7 +156,7 @@ button{font-family:inherit;color:inherit;cursor:pointer}
   <div class="map-body">
     <div class="panel bolts map-panel">
       <div class="panel-hdr"><span class="lbl sk">ROUTE MAP</span><span class="info" id="map-sector"></span></div>
-      <canvas id="map-c" width="720" height="390"></canvas>
+      <canvas id="map-c"></canvas>
     </div>
     <div class="panel bolts log-panel">
       <div class="panel-hdr"><span class="lbl sk">LOGBOOK</span></div>
@@ -229,8 +232,45 @@ button{font-family:inherit;color:inherit;cursor:pointer}
 
 <!-- ═══ COMBAT (not .screen, handled manually) ═══ -->
 <div id="game">
-  <canvas id="cc" width="900" height="430"></canvas>
-  <p id="rotate-hint">↺ 建議橫置裝置以獲得最佳體驗</p>
+  <div class="g-hdr">
+    <h1 class="sk">ENGAGEMENT</h1>
+    <span class="sub" id="enc-type">// raiders</span>
+    <span class="run" id="enc-cs"></span>
+  </div>
+  <div class="enc-body">
+    <!-- 左：戰場畫布 -->
+    <div class="panel bolts enc-hw">
+      <div class="panel-hdr"><span class="lbl sk">HIGHWAY</span><span class="info" id="enc-sim">// 1×</span></div>
+      <div class="enc-canvas-wrap">
+        <canvas id="cc"></canvas>
+      </div>
+      <div style="padding:10px 14px;border-top:2px solid var(--line);background:var(--bg2);display:flex;gap:8px;align-items:center;flex-shrink:0">
+        <button class="pxbtn sk" id="btn-pause" onclick="togglePause()" style="font-size:10px">⏸ PAUSE</button>
+        <button class="pxbtn sk active" id="btn-1x" onclick="setSimSpeed(1)" style="font-size:10px">1×</button>
+        <button class="pxbtn sk" id="btn-2x" onclick="setSimSpeed(2)" style="font-size:10px">2×</button>
+        <button class="pxbtn sk" id="btn-4x" onclick="setSimSpeed(4)" style="font-size:10px">4×</button>
+        <div style="flex:1"></div>
+        <button class="pxbtn sk danger" id="btn-retreat" onclick="retreatCombat()" style="font-size:10px">↶ RETREAT</button>
+      </div>
+    </div>
+    <!-- 右：狀態面板 -->
+    <div class="panel bolts enc-side">
+      <div class="panel-hdr"><span class="lbl sk">STATUS</span></div>
+      <div style="flex:1;padding:14px;display:flex;flex-direction:column;gap:10px;overflow:auto">
+        <div class="sk" style="font-size:11px;color:var(--bright)" id="cs-pname">YOU</div>
+        <div class="stat-row"><span class="stat-lbl sk">HULL</span><div class="stat-track"><div class="stat-fill" id="cs-hp-fill" style="background:var(--blood)"></div><div class="stat-num" id="cs-hp-txt"></div></div></div>
+        <div class="stat-row"><span class="stat-lbl sk">SPEED</span><div class="stat-track"><div class="stat-fill" id="cs-sp-fill" style="background:var(--rust)"></div><div class="stat-num" id="cs-sp-txt"></div></div></div>
+        <div id="cs-extra" style="font-size:14px;color:var(--dim)"></div>
+        <hr style="border:none;border-top:1px dashed var(--line);margin:2px 0">
+        <div class="sk" style="font-size:11px;color:var(--dim)" id="cs-ename">HOSTILE</div>
+        <div class="stat-row"><span class="stat-lbl sk">HULL</span><div class="stat-track"><div class="stat-fill" id="cs-ehp-fill" style="background:#a4232a"></div><div class="stat-num" id="cs-ehp-txt"></div></div></div>
+        <div id="cs-edist" style="font-size:14px;color:var(--dim)"></div>
+        <hr style="border:none;border-top:1px dashed var(--line);margin:2px 0">
+        <div class="sk" style="font-size:11px;color:var(--dim)">RADIO CHATTER</div>
+        <div id="cs-log" style="display:flex;flex-direction:column;gap:3px;font-size:15px;flex:1;overflow:auto"></div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- ═══ END OVERLAY ═══ -->
@@ -531,7 +571,12 @@ function renderMapScreen(){
 function stopMapAnim(){if(mapAnimId){cancelAnimationFrame(mapAnimId);mapAnimId=null;}}
 
 function drawMapCanvas(){
-  const W=mapCanvas.width,H=mapCanvas.height;
+  // 同步 canvas buffer 到實際顯示尺寸
+  const dw=mapCanvas.clientWidth,dh=mapCanvas.clientHeight;
+  if(dw>0&&dh>0&&(mapCanvas.width!==dw||mapCanvas.height!==dh)){
+    mapCanvas.width=dw; mapCanvas.height=dh;
+  }
+  const W=mapCanvas.width||720,H=mapCanvas.height||390;
   mctx.fillStyle='#0a0604';mctx.fillRect(0,0,W,H);
   // desert bg
   const sky=mctx.createLinearGradient(0,0,0,H);
@@ -740,12 +785,13 @@ const ENEMIES={
 
 const combatCanvas=document.getElementById('cc');
 const ctx=combatCanvas.getContext('2d');
-const W=900,H=430,SCALE=0.72;
+let W=900,H=430; const SCALE=0.72;
 let player,enemy,gap,phase,elapsed;
 let combatLog=[],worldX=0,bgScroll=0;
 let floaters=[],tracers=[],particles=[];
 let lastTime=0,combatAnimId=null;
 let pendingNodeType=null;
+let combatPaused=false,combatSimSpeed=1;
 
 const TERRAIN=Array.from({length:22},(_,i)=>({
   wx:i*120+Math.random()*70,y:4+Math.random()*22,
@@ -778,12 +824,29 @@ function startCombat(nodeType){
   worldX=0;bgScroll=0;floaters=[];tracers=[];particles=[];
 
   goScreen('combat');
+  // 更新 header 與 sidebar 初始資訊
+  const typeLabel={fight:'raiders',elite:'warlord',boss:'oil baron'}[nodeType]||nodeType;
+  document.getElementById('enc-type').textContent='// '+typeLabel;
+  document.getElementById('enc-cs').textContent=runState.callsign;
+  document.getElementById('cs-pname').textContent='YOU — '+runState.callsign;
+  document.getElementById('cs-ename').textContent='HOSTILE — '+enemy.name;
+  const wDef=WEAPONS.find(w=>w.id===runState.weapon);
+  document.getElementById('cs-extra').innerHTML=`ARM <em>${player.arm}</em>  WPN <em>${wDef?wDef.name:''}</em>`;
+  // 重置控制狀態
+  combatPaused=false;combatSimSpeed=1;
+  setSimSpeed(1);
+  document.getElementById('btn-pause').textContent='⏸ PAUSE';
+  document.getElementById('btn-retreat').disabled=false;
+
   lastTime=performance.now();
   if(combatAnimId)cancelAnimationFrame(combatAnimId);
   const loop=(now)=>{
     if(phase!=='combat')return;
-    const dt=Math.min(0.05,(now-lastTime)/1000);lastTime=now;
-    update(dt);drawCombat();combatAnimId=requestAnimationFrame(loop);
+    const rawDt=Math.min(0.05,(now-lastTime)/1000);lastTime=now;
+    const dt=combatPaused?0:rawDt*combatSimSpeed;
+    if(dt>0)update(dt);
+    drawCombat();
+    combatAnimId=requestAnimationFrame(loop);
   };
   combatAnimId=requestAnimationFrame(loop);
 }
@@ -850,8 +913,14 @@ function spawnFloat(v,t,c){floaters.push({v,text:t,color:c,y:0,life:1.0});}
 function spawnSparks(x,y,n,c){for(let i=0;i<n;i++)particles.push({x,y,vx:(Math.random()-.5)*200,vy:-Math.random()*180-40,life:.35+Math.random()*.3,color:c||'#f4e1b3',size:1+Math.floor(Math.random()*2)});}
 
 function drawCombat(){
+  // 同步 canvas buffer 尺寸到實際顯示尺寸
+  const dw=combatCanvas.clientWidth,dh=combatCanvas.clientHeight;
+  if(dw>0&&dh>0&&(combatCanvas.width!==dw||combatCanvas.height!==dh)){
+    combatCanvas.width=W=dw; combatCanvas.height=H=dh;
+  }
   ctx.imageSmoothingEnabled=false;
   ctx.fillStyle='#0a0604';ctx.fillRect(0,0,W,H);
+  updateCombatSidebar();
   const sky=ctx.createLinearGradient(0,0,0,H*.72);
   sky.addColorStop(0,'#1a0c04');sky.addColorStop(.4,'#3a1a08');sky.addColorStop(.8,'#7a3a12');sky.addColorStop(1,'#c45a1c');
   ctx.fillStyle=sky;ctx.fillRect(0,0,W,H*.72);
@@ -887,26 +956,63 @@ function drawV(sx,baseY,v,isPlayer){
 }
 
 function drawHUD(pSX,eSX,baseY){
-  drawHpBar(8,6,280,20,player,true);drawHpBar(612,6,280,20,enemy,false);
-  ctx.fillStyle='#ddbb55';ctx.font='bold 20px Courier New';ctx.textAlign='center';ctx.fillText(Math.round(gap),450,22);
-  ctx.fillStyle='#664422';ctx.font='9px Courier New';ctx.fillText('距 離',450,33);
-  ctx.fillStyle='#443322';ctx.font='9px Courier New';ctx.textAlign='right';ctx.fillText(`${elapsed.toFixed(1)}s`,895,44);
+  // 只顯示畫布中央的距離指示器
+  const cx=W/2;
+  ctx.fillStyle='rgba(10,6,4,0.75)';ctx.fillRect(cx-44,3,88,26);
+  ctx.strokeStyle='#4a341e';ctx.lineWidth=1;ctx.strokeRect(cx-44,3,88,26);
+  ctx.fillStyle='#ddbb55';ctx.font='bold 20px VT323,monospace';ctx.textAlign='center';ctx.fillText(Math.round(gap)+'px',cx,20);
+  ctx.fillStyle='#664422';ctx.font='9px Silkscreen,monospace';ctx.fillText('GAP',cx,30);
+  // 武器狀態（左下小字）
   const w=player.w,inR=gap<=w.range,rdy=w.timer<=0;
-  ctx.fillStyle=inR?(rdy?'#44ee88':'#ffaa33'):'#443322';ctx.font='11px Silkscreen,monospace';ctx.textAlign='left';
-  ctx.fillText(`${w.name} ${inR?(rdy?'READY':'CD '+w.timer.toFixed(1)+'s'):'射程外'}`,10,baseY+16);
-  ctx.font='11px Courier New';ctx.textAlign='right';
-  combatLog.slice(0,5).forEach((l,i)=>{ctx.fillStyle=i===0?'#ddbb88':`rgba(180,140,80,${.5-i*.08})`;ctx.fillText(l,W-10,H-12-i*13);});
+  ctx.fillStyle=inR?(rdy?'rgba(68,238,136,0.9)':'rgba(255,170,51,0.9)'):'rgba(68,51,34,0.9)';
+  ctx.font='10px Silkscreen,monospace';ctx.textAlign='left';
+  ctx.fillText(inR?(rdy?w.name+' READY':w.name+' '+w.timer.toFixed(1)+'s'):w.name+' OUT OF RANGE',8,H-8);
 }
 
-function drawHpBar(x,y,w,h,v,left){
-  const r=Math.max(0,v.hp/v.maxHp);
-  ctx.fillStyle='#100800';ctx.fillRect(x,y,w,h);
-  ctx.fillStyle=r>.5?'#44bb33':r>.25?'#ddaa22':'#dd3333';ctx.fillRect(x,y,w*r,h);
-  if(v.flash>0){ctx.fillStyle=`rgba(255,180,60,${v.flash*.45})`;ctx.fillRect(x,y,w,h);}
-  ctx.strokeStyle='#2a1200';ctx.lineWidth=1;ctx.strokeRect(x,y,w,h);
-  ctx.fillStyle=v.color;ctx.font='bold 11px Courier New';ctx.textAlign=left?'left':'right';
-  ctx.fillText(v.name,left?x:x+w,y-2);
-  ctx.fillStyle='#998866';ctx.font='10px Courier New';ctx.fillText(`${Math.round(v.hp)}/${v.maxHp}`,left?x+4:x+w-4,y+h-4);
+function updateCombatSidebar(){
+  if(!player||!enemy)return;
+  const pHpPct=Math.max(0,player.hp/player.maxHp);
+  const pHpCol=pHpPct>.5?'#44bb33':pHpPct>.25?'#ddaa22':'#dd3333';
+  const pSpdPct=Math.min(1,player.spd/player.maxSpd);
+  const eHpPct=Math.max(0,enemy.hp/enemy.maxHp);
+  const eHpCol=eHpPct>.5?'#44bb33':eHpPct>.25?'#ddaa22':'#dd3333';
+  const $=id=>document.getElementById(id);
+  const hpFill=$('cs-hp-fill');hpFill.style.width=`calc(${pHpPct*100}% - 2px)`;hpFill.style.background=pHpCol;
+  $('cs-hp-txt').textContent=`${Math.round(player.hp)}/${player.maxHp}`;
+  $('cs-sp-fill').style.width=`calc(${pSpdPct*100}% - 2px)`;
+  $('cs-sp-txt').textContent=`${Math.round(player.spd*60)} km/h`;
+  const eHpFill=$('cs-ehp-fill');eHpFill.style.width=`calc(${eHpPct*100}% - 2px)`;eHpFill.style.background=eHpCol;
+  $('cs-ehp-txt').textContent=`${Math.round(enemy.hp)}/${enemy.maxHp}`;
+  $('cs-edist').textContent=`距離 ${Math.round(gap)} px`;
+  // 戰鬥 log
+  const logEl=$('cs-log');
+  const html=combatLog.map((l,i)=>`<div style="color:${i===0?'var(--ink)':'var(--dim)'}">${l}</div>`).join('');
+  if(logEl.innerHTML!==html)logEl.innerHTML=html;
+}
+
+function togglePause(){
+  combatPaused=!combatPaused;
+  document.getElementById('btn-pause').textContent=combatPaused?'▶ RESUME':'⏸ PAUSE';
+}
+
+function setSimSpeed(n){
+  combatSimSpeed=n;
+  const info=document.getElementById('enc-sim');
+  if(info)info.textContent=`// ${n}×`;
+  [1,2,4].forEach(x=>{
+    const b=document.getElementById('btn-'+x+'x');
+    if(b)b.classList.toggle('active',x===n);
+  });
+}
+
+function retreatCombat(){
+  if(phase!=='combat')return;
+  if(combatAnimId){cancelAnimationFrame(combatAnimId);combatAnimId=null;}
+  phase='end';
+  runState.hp=Math.max(1,Math.floor(player.hp)-3);
+  runState.log.push(`撤退！剩餘 HULL ${runState.hp}。`);
+  document.getElementById('btn-retreat').disabled=true;
+  setTimeout(()=>{goScreen('map');renderMapScreen();},600);
 }
 
 function drawMtns(){
@@ -926,6 +1032,7 @@ function endCombat(win){
   if(phase!=='combat')return;
   phase='end';
   if(combatAnimId){cancelAnimationFrame(combatAnimId);combatAnimId=null;}
+  const rb=document.getElementById('btn-retreat');if(rb)rb.disabled=true;
   if(win){
     const reward=pendingNodeType==='boss'?10:pendingNodeType==='elite'?5:3;
     runState.hp=Math.max(1,Math.floor(player.hp));
