@@ -356,15 +356,15 @@ function carPxW(kind){const c=CAR[kind];return c?(c.len+6)*3:90;}
 // ═══════════════════════════════════════════════
 
 const CHASSIS=[
-  {id:'scout', name:'Scout', s:{HP:12,MOV:4,ARM:0},desc:'輕快車架。速度快，側翼突破。'},
-  {id:'runner',name:'Runner',s:{HP:18,MOV:3,ARM:1},desc:'均衡戰車。強壯又靈活。'},
-  {id:'hauler',name:'Hauler',s:{HP:28,MOV:2,ARM:2},desc:'重裝坦克。骨板焊死，耐打。'},
+  {id:'scout', name:'Scout', capacity:6,  s:{HP:12,MOV:4,ARM:0},desc:'輕快車架。速度快，側翼突破。'},
+  {id:'runner',name:'Runner',capacity:10, s:{HP:18,MOV:3,ARM:1},desc:'均衡戰車。強壯又靈活。'},
+  {id:'hauler',name:'Hauler',capacity:16, s:{HP:28,MOV:2,ARM:2},desc:'重裝坦克。骨板焊死，耐打。'},
 ];
 const WEAPONS=[
-  {id:'harpoon',   name:'Harpoon',    s:{DMG:3,RNG:4},desc:'命中後將目標拉近 14px。',range:320,cd:1.5,dmg:10,pull:true},
-  {id:'flamer',    name:'Flamer',     s:{DMG:2,RNG:2},desc:'短距，持續燃燒 3s。',    range:160,cd:0.5,dmg:7, burn:true},
-  {id:'autocannon',name:'Autocannon', s:{DMG:4,RNG:5},desc:'直線飛行，高射速主力砲。',range:400,cd:0.9,dmg:14},
-  {id:'mortar',    name:'Mortar',     s:{DMG:5,RNG:7},desc:'弧線飛行，射程最遠。',    range:560,cd:2.6,dmg:22},
+  {id:'flamer',    name:'Flamer',     weight:1,s:{DMG:2,RNG:2},desc:'短距，持續燃燒 3s。',    range:160,cd:0.5,dmg:7, burn:true},
+  {id:'harpoon',   name:'Harpoon',    weight:2,s:{DMG:3,RNG:4},desc:'命中後將目標拉近 14px。',range:320,cd:1.5,dmg:10,pull:true},
+  {id:'autocannon',name:'Autocannon', weight:3,s:{DMG:4,RNG:5},desc:'直線飛行，高射速主力砲。',range:400,cd:0.9,dmg:14},
+  {id:'mortar',    name:'Mortar',     weight:5,s:{DMG:5,RNG:7},desc:'弧線飛行，射程最遠。',    range:560,cd:2.6,dmg:22},
 ];
 const ENGINES=[
   {id:'diesel',name:'Diesel',s:{MOV:0,FUEL:12},desc:'穩定，便宜。'},
@@ -378,21 +378,27 @@ const ARMORS=[
 ];
 const TABS=[
   {id:'chassis',label:'CHASSIS',opts:CHASSIS},
-  {id:'weapon', label:'WEAPON', opts:WEAPONS},
+  {id:'weapon', label:'WEAPON', opts:WEAPONS,builder:true},
   {id:'engine', label:'ENGINE', opts:ENGINES},
   {id:'armor',  label:'ARMOR',  opts:ARMORS},
 ];
 
-let build={callsign:'BONESAW',chassis:'runner',weapon:'autocannon',engine:'diesel',armor:'scrap'};
+let build={callsign:'BONESAW',chassis:'runner',weapons:['autocannon'],engine:'diesel',armor:'scrap'};
 let activeTab='chassis';
 
 function getBuild(){
   return{
     ch:CHASSIS.find(o=>o.id===build.chassis),
-    wp:WEAPONS.find(o=>o.id===build.weapon),
+    wps:build.weapons.map(id=>WEAPONS.find(o=>o.id===id)).filter(Boolean),
     en:ENGINES.find(o=>o.id===build.engine),
     ar:ARMORS.find(o=>o.id===build.armor),
   };
+}
+
+function getStance(weaponIds){
+  if(weaponIds.includes('mortar'))return{targetGap:480,fleeGap:320};
+  if(weaponIds.includes('harpoon'))return{targetGap:200,fleeGap:0};
+  return{targetGap:280,fleeGap:0};
 }
 
 function renderGarage(){
@@ -402,33 +408,111 @@ function renderGarage(){
   TABS.forEach(t=>{
     const btn=document.createElement('button');
     btn.className='tab-btn sk'+(t.id===activeTab?' active':'');
-    btn.innerHTML=`<span>${t.label}</span><span class="tab-cur">${build[t.id].toLowerCase()}</span>`;
+    const cur=t.builder
+      ? (build.weapons.length?build.weapons.length+'× wpn':'none')
+      : (build[t.id]||'').toLowerCase();
+    btn.innerHTML=`<span>${t.label}</span><span class="tab-cur">${cur}</span>`;
     btn.onclick=()=>{activeTab=t.id;renderGarage();};
     tabsEl.appendChild(btn);
   });
   const content=document.getElementById('tab-content');
   content.innerHTML='';
   const sec=TABS.find(t=>t.id===activeTab);
-  const grid=document.createElement('div');grid.className='part-grid';
-  sec.opts.forEach(opt=>{
-    const card=document.createElement('div');
-    card.className='part-card'+(build[activeTab]===opt.id?' sel':'');
-    card.onclick=()=>{build[activeTab]=opt.id;renderGarage();};
-    const wrap=document.createElement('div');wrap.className='part-preview';
-    const pc=document.createElement('canvas');pc.style.imageRendering='pixelated';
-    if(activeTab==='chassis'){const sp=TD[opt.id];pc.width=sp[0].length*3;pc.height=sp.length*3;const c=pc.getContext('2d');c.imageSmoothingEnabled=false;drawSprite(c,sp,0,0,3);}
-    else if(activeTab==='weapon'){const sp=WPS[opt.id];pc.width=sp[0].length*3;pc.height=sp.length*3;const c=pc.getContext('2d');c.imageSmoothingEnabled=false;drawSprite(c,sp,0,0,3);}
-    else{pc.width=48;pc.height=28;const c=pc.getContext('2d');c.imageSmoothingEnabled=false;drawCar(c,0,3,1,build.chassis,0);}
-    wrap.appendChild(pc);card.appendChild(wrap);
-    const nm=document.createElement('div');nm.className='part-name';nm.textContent=opt.name.toUpperCase();card.appendChild(nm);
-    const st=document.createElement('div');st.className='part-stats';
-    Object.entries(opt.s).forEach(([k,v])=>{const s=document.createElement('span');s.innerHTML=`${k} <em>${v>0?'+'+v:v}</em>`;st.appendChild(s);});
-    card.appendChild(st);
-    const ds=document.createElement('div');ds.className='part-desc';ds.textContent=opt.desc;card.appendChild(ds);
-    grid.appendChild(card);
-  });
-  content.appendChild(grid);
+  if(sec.builder){renderWeaponBuilder(content);}
+  else{
+    const grid=document.createElement('div');grid.className='part-grid';
+    sec.opts.forEach(opt=>{
+      const card=document.createElement('div');
+      card.className='part-card'+(build[activeTab]===opt.id?' sel':'');
+      card.onclick=()=>{build[activeTab]=opt.id;renderGarage();};
+      const wrap=document.createElement('div');wrap.className='part-preview';
+      const pc=document.createElement('canvas');pc.style.imageRendering='pixelated';
+      if(activeTab==='chassis'){const sp=TD[opt.id];pc.width=sp[0].length*3;pc.height=sp.length*3;const c=pc.getContext('2d');c.imageSmoothingEnabled=false;drawSprite(c,sp,0,0,3);}
+      else{pc.width=48;pc.height=28;const c=pc.getContext('2d');c.imageSmoothingEnabled=false;drawCar(c,0,3,1,build.chassis,0);}
+      wrap.appendChild(pc);card.appendChild(wrap);
+      const nm=document.createElement('div');nm.className='part-name';nm.textContent=opt.name.toUpperCase();card.appendChild(nm);
+      const st=document.createElement('div');st.className='part-stats';
+      Object.entries(opt.s).forEach(([k,v])=>{const s=document.createElement('span');s.innerHTML=`${k} <em>${v>0?'+'+v:v}</em>`;st.appendChild(s);});
+      card.appendChild(st);
+      const ds=document.createElement('div');ds.className='part-desc';ds.textContent=opt.desc;card.appendChild(ds);
+      grid.appendChild(card);
+    });
+    content.appendChild(grid);
+  }
   updatePreview();
+}
+
+function renderWeaponBuilder(content){
+  const ch=CHASSIS.find(c=>c.id===build.chassis);
+  const capacity=ch?ch.capacity:8;
+  const usedW=build.weapons.reduce((s,id)=>{const w=WEAPONS.find(x=>x.id===id);return s+(w?w.weight:0);},0);
+  const rem=capacity-usedW;
+  const pct=Math.min(1,usedW/capacity);
+  const barCol=pct>=1?'var(--blood)':pct>0.75?'#ddaa22':'var(--rust)';
+  const stance=getStance(build.weapons);
+
+  content.style.cssText='display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:14px;height:100%';
+
+  // 左欄：已配置
+  const left=document.createElement('div');
+  left.style.cssText='display:flex;flex-direction:column;gap:8px;min-height:0';
+  left.innerHTML=`
+    <div class="sk" style="font-size:10px;color:var(--dim)">已配置武器</div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--dim);margin-bottom:4px">
+        <span>容量 ${usedW} / ${capacity}</span>
+        <span style="color:${rem<=0?'var(--blood)':'var(--dim)'}">${rem<=0?'已滿':'剩餘 '+rem}</span>
+      </div>
+      <div style="height:8px;background:var(--bg0);border:1px solid var(--line)">
+        <div style="height:100%;width:${pct*100}%;background:${barCol};transition:width .15s"></div>
+      </div>
+    </div>
+    <div id="wb-loadout" style="display:flex;flex-direction:column;gap:4px;flex:1;overflow:auto"></div>
+    <div style="font-size:13px;color:var(--dim);padding-top:4px;border-top:1px dashed var(--line)" id="wb-stance">
+      ${build.weapons.length?`戰術距離 ${stance.targetGap}px${stance.fleeGap?` / 逃跑 &lt;${stance.fleeGap}px`:''}':'// 選武器以顯示戰術'}
+    </div>`;
+  content.appendChild(left);
+
+  const loadoutEl=document.getElementById('wb-loadout');
+  if(build.weapons.length===0){
+    loadoutEl.innerHTML='<div style="color:var(--faint);font-style:italic;font-size:14px">// 尚未選擇武器</div>';
+  } else {
+    build.weapons.forEach((wid,idx)=>{
+      const w=WEAPONS.find(x=>x.id===wid);if(!w)return;
+      const el=document.createElement('div');
+      el.style.cssText='display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--bg0);border:1px solid var(--line);cursor:pointer';
+      el.innerHTML=`
+        <div class="part-preview" style="height:auto;width:32px;flex-shrink:0"><canvas style="image-rendering:pixelated"></canvas></div>
+        <span style="font-size:12px;color:var(--bright);font-family:Silkscreen,monospace;flex:1">${w.name.toUpperCase()}</span>
+        <span style="font-size:11px;color:var(--dim)">重${w.weight} 射${w.range} 傷${w.dmg} CD${w.cd}s</span>
+        <span style="font-size:12px;color:var(--blood);padding-left:4px">✕</span>`;
+      const pc=el.querySelector('canvas');
+      const sp=WPS[wid];if(sp){pc.width=sp[0].length*3;pc.height=sp.length*3;const c=pc.getContext('2d');c.imageSmoothingEnabled=false;drawSprite(c,sp,0,0,3);}
+      el.onclick=()=>{build.weapons.splice(idx,1);renderGarage();};
+      loadoutEl.appendChild(el);
+    });
+  }
+
+  // 右欄：武器池
+  const right=document.createElement('div');
+  right.style.cssText='display:flex;flex-direction:column;gap:4px;min-height:0';
+  right.innerHTML='<div class="sk" style="font-size:10px;color:var(--dim);margin-bottom:4px">武器池</div>';
+  WEAPONS.forEach(w=>{
+    const canAdd=rem>=w.weight;
+    const dps=(w.dmg/w.cd).toFixed(1);
+    const el=document.createElement('div');
+    el.style.cssText=`display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--bg0);border:1px solid var(--line);cursor:${canAdd?'pointer':'not-allowed'};opacity:${canAdd?1:0.38}`;
+    el.innerHTML=`
+      <span style="font-size:10px;background:var(--bg2);border:1px solid var(--line);color:var(--bright);padding:2px 5px;min-width:30px;text-align:center;font-family:Silkscreen,monospace">重${w.weight}</span>
+      <div class="part-preview" style="height:auto;width:32px;flex-shrink:0"><canvas style="image-rendering:pixelated"></canvas></div>
+      <span style="font-size:12px;color:var(--bright);font-family:Silkscreen,monospace;flex:1">${w.name.toUpperCase()}</span>
+      <span style="font-size:11px;color:var(--dim)">射${w.range} 傷${w.dmg} DPS ${dps}</span>`;
+    const pc=el.querySelector('canvas');
+    const sp=WPS[w.id];if(sp){pc.width=sp[0].length*3;pc.height=sp.length*3;const c=pc.getContext('2d');c.imageSmoothingEnabled=false;drawSprite(c,sp,0,0,3);}
+    if(canAdd)el.onclick=()=>{build.weapons.push(w.id);renderGarage();};
+    right.appendChild(el);
+  });
+  content.appendChild(right);
 }
 
 function setBar(n,val,max){const p=Math.max(0,Math.min(1,val/max));document.getElementById('b-'+n).style.width=(p*100)+'%';document.getElementById('v-'+n).textContent=val+'/'+max;}
@@ -436,7 +520,7 @@ function updatePreview(){
   const{ch,wp,en,ar}=getBuild();
   const hp=ch.s.HP+ar.s.HP,arm=ch.s.ARM+ar.s.ARM,mov=ch.s.MOV+en.s.MOV,fuel=en.s.FUEL;
   document.getElementById('lbl-ch').textContent='└── '+build.chassis;
-  document.getElementById('lbl-wp').textContent=build.weapon+' ──┘';
+  document.getElementById('lbl-wp').textContent=(build.weapons.join('+')||'none')+' ──┘';
   setBar('hull',hp,36);setBar('arm',arm,6);setBar('spd',mov,8);setBar('fuel',fuel,20);
   const cfg=CAR[build.chassis];
   const carW=(cfg.len+10)*3,carH=(cfg.top+cfg.bh+cfg.wr+8)*3;
@@ -801,22 +885,23 @@ const TERRAIN=Array.from({length:22},(_,i)=>({
 
 function startCombat(nodeType){
   pendingNodeType=nodeType;
-  const{ch,wp,en,ar}=getBuild();
+  const{ch,wps,en,ar}=getBuild();
   const totalHp=runState.hp;
   const totalArm=ch.s.ARM+ar.s.ARM;
   const totalMov=ch.s.MOV+en.s.MOV;
   const pSpd=1.2+totalMov*0.35;
+  const stance=getStance(build.weapons);
 
   player={isPlayer:true,name:runState.callsign,kind:runState.chassis,color:'#e8762a',
     hp:totalHp,maxHp:runState.maxHp,spd:1.5,maxSpd:pSpd,arm:totalArm,
-    w:{id:wp.id,name:wp.name,range:wp.range,cd:wp.cd,dmg:wp.dmg,pull:wp.pull,burn:wp.burn,timer:0},
-    tgt:wp.range*0.65,flash:0,burn:0,burnT:0,dmgOut:0,dmgIn:0,hits:0};
+    weapons:wps.map(wp=>({...wp,timer:0})),
+    tgt:stance.targetGap,flash:0,burn:0,burnT:0,dmgOut:0,dmgIn:0,hits:0};
 
   const pool=ENEMIES[nodeType]||ENEMIES.fight;
   const eDef=pool[Math.floor(Math.random()*pool.length)];
   enemy={isPlayer:false,name:eDef.name,kind:eDef.kind,color:'#d83a30',
     hp:eDef.hp,maxHp:eDef.hp,spd:1.2,maxSpd:eDef.spd,arm:eDef.arm,
-    w:{id:'gun',name:'步槍',range:eDef.wRange,cd:eDef.wCd,dmg:eDef.wDmg,timer:0},
+    weapons:[{id:'gun',name:'步槍',range:eDef.wRange,cd:eDef.wCd,dmg:eDef.wDmg,timer:0}],
     tgt:eDef.wRange*0.6,flash:0,burn:0,burnT:0,dmgOut:0,dmgIn:0,hits:0};
 
   gap=450;phase='combat';elapsed=0;
@@ -830,8 +915,7 @@ function startCombat(nodeType){
   document.getElementById('enc-cs').textContent=runState.callsign;
   document.getElementById('cs-pname').textContent='YOU — '+runState.callsign;
   document.getElementById('cs-ename').textContent='HOSTILE — '+enemy.name;
-  const wDef=WEAPONS.find(w=>w.id===runState.weapon);
-  document.getElementById('cs-extra').innerHTML=`ARM <em>${player.arm}</em>  WPN <em>${wDef?wDef.name:''}</em>`;
+  document.getElementById('cs-extra').innerHTML=`ARM <em>${totalArm}</em>  WPN <em>${build.weapons.join('+')}</em>`;
   // 重置控制狀態
   combatPaused=false;combatSimSpeed=1;
   setSimSpeed(1);
@@ -857,11 +941,15 @@ function update(dt){
   elapsed+=dt;
   tickV(player,dt);tickV(enemy,dt);
   aiSpd(player,gap,dt);
-  player.w.timer=Math.max(0,player.w.timer-dt);
-  if(player.w.timer<=0&&gap<=player.w.range)fire(player,enemy);
+  for(const w of player.weapons){
+    w.timer=Math.max(0,w.timer-dt);
+    if(w.timer<=0&&gap<=w.range)fireWeapon(w,player,enemy);
+  }
   aiSpd(enemy,gap,dt);
-  enemy.w.timer=Math.max(0,enemy.w.timer-dt);
-  if(enemy.w.timer<=0&&gap<=enemy.w.range)fire(enemy,player);
+  for(const w of enemy.weapons){
+    w.timer=Math.max(0,w.timer-dt);
+    if(w.timer<=0&&gap<=w.range)fireWeapon(w,enemy,player);
+  }
   const rel=(player.spd-enemy.spd)*60;
   gap=Math.max(0,Math.min(800,gap-rel*dt));
   worldX+=player.spd*60*dt;bgScroll+=player.spd*60*dt*.25;
@@ -896,15 +984,15 @@ function aiSpd(v,g,dt){
     else v.spd=lerp(v.spd,v.maxSpd*.7,dt*3);
   }
 }
-function fire(src,tgt){
-  const dmg=Math.max(1,Math.floor(src.w.dmg*(0.85+Math.random()*.3)-tgt.arm*.5));
+function fireWeapon(w,src,tgt){
+  const dmg=Math.max(1,Math.floor(w.dmg*(0.85+Math.random()*.3)-tgt.arm*.5));
   tgt.hp=Math.max(0,tgt.hp-dmg);tgt.flash=1;
-  src.dmgOut+=dmg;tgt.dmgIn+=dmg;src.hits++;src.w.timer=src.w.cd;
-  if(src.w.pull){gap=Math.max(0,gap-14);addLog(`‹ Harpoon PULL -${dmg}`);}
-  else if(src.isPlayer)addLog(`› ${src.w.name} -${dmg}`);
-  else addLog(`◀ ${src.w.name} -${dmg}`);
-  if(src.w.burn&&!tgt.burn){tgt.burn=3;tgt.burnT=0;}
-  tracers.push({fromPlayer:src.isPlayer,life:.12,color:src.w.id==='flamer'?'#e8762a':src.isPlayer?'#f4e1b3':'#d83a30',thick:src.w.id==='mortar'?4:2});
+  src.dmgOut+=dmg;tgt.dmgIn+=dmg;src.hits++;w.timer=w.cd;
+  if(w.pull){gap=Math.max(0,gap-14);addLog(`‹ ${w.name} PULL -${dmg}`);}
+  else if(src.isPlayer)addLog(`› ${w.name} -${dmg}`);
+  else addLog(`◀ ${w.name} -${dmg}`);
+  if(w.burn&&!tgt.burn){tgt.burn=3;tgt.burnT=0;}
+  tracers.push({fromPlayer:src.isPlayer,life:.12,color:w.id==='flamer'?'#e8762a':src.isPlayer?'#f4e1b3':'#d83a30',thick:w.id==='mortar'?4:2});
   spawnFloat(tgt,`-${dmg}`,src.isPlayer?'#e8762a':'#d83a30');
   spawnSparks(src.isPlayer?280:200,4,5,src.isPlayer?'#e8762a':'#d83a30');
 }
@@ -962,11 +1050,13 @@ function drawHUD(pSX,eSX,baseY){
   ctx.strokeStyle='#4a341e';ctx.lineWidth=1;ctx.strokeRect(cx-44,3,88,26);
   ctx.fillStyle='#ddbb55';ctx.font='bold 20px VT323,monospace';ctx.textAlign='center';ctx.fillText(Math.round(gap)+'px',cx,20);
   ctx.fillStyle='#664422';ctx.font='9px Silkscreen,monospace';ctx.fillText('GAP',cx,30);
-  // 武器狀態（左下小字）
-  const w=player.w,inR=gap<=w.range,rdy=w.timer<=0;
-  ctx.fillStyle=inR?(rdy?'rgba(68,238,136,0.9)':'rgba(255,170,51,0.9)'):'rgba(68,51,34,0.9)';
+  // 武器狀態（左下小字，每把武器一行）
   ctx.font='10px Silkscreen,monospace';ctx.textAlign='left';
-  ctx.fillText(inR?(rdy?w.name+' READY':w.name+' '+w.timer.toFixed(1)+'s'):w.name+' OUT OF RANGE',8,H-8);
+  player.weapons.forEach((w,i)=>{
+    const inR=gap<=w.range,rdy=w.timer<=0;
+    ctx.fillStyle=inR?(rdy?'rgba(68,238,136,0.9)':'rgba(255,170,51,0.9)'):'rgba(68,51,34,0.9)';
+    ctx.fillText(inR?(rdy?w.name+' READY':w.name+' '+w.timer.toFixed(1)+'s'):w.name+' OOR',8,H-8-i*13);
+  });
 }
 
 function updateCombatSidebar(){
