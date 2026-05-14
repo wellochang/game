@@ -872,6 +872,7 @@ let floaters=[],tracers=[],particles=[];
 let lastTime=0,combatAnimId=null;
 let pendingNodeType=null;
 let combatPaused=false,combatSimSpeed=1;
+let combatPSX=220,combatESX=680;
 
 const TERRAIN=Array.from({length:22},(_,i)=>({
   wx:i*120+Math.random()*70,y:4+Math.random()*22,
@@ -952,12 +953,12 @@ function update(dt){
     const ed=Math.max(0,Math.floor(3+rv*.02-enemy.arm*.5));
     if(pd>0){player.hp-=pd;player.flash=1;addLog(`‼ 衝撞 -${pd}`);spawnFloat(player,`-${pd}`,'#d83a30');}
     if(ed>0){enemy.hp-=ed;enemy.flash=1;spawnFloat(enemy,`-${ed}`,'#e8762a');}
-    gap=Math.max(30,gap+18);spawnSparks(220,6,12,'#f4e1b3');
+    gap=Math.max(30,gap+18);spawnSparks(combatPSX,6,12,'#f4e1b3');
   }
   tracers=tracers.filter(t=>(t.life-=dt)>0);
   floaters=floaters.filter(f=>{f.life-=dt;f.y-=28*dt;return f.life>0;});
   particles=particles.filter(p=>{p.life-=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=200*dt;return p.life>0;});
-  if(enemy.hp<=0&&phase==='combat'){spawnSparks(300,6,40,'#e8762a');endCombat(true);}
+  if(enemy.hp<=0&&phase==='combat'){spawnSparks(combatESX,6,40,'#e8762a');endCombat(true);}
   if(player.hp<=0&&phase==='combat')endCombat(false);
 }
 
@@ -975,7 +976,7 @@ function fireWeapon(w,src,tgt){
   if(w.burn&&!tgt.burn){tgt.burn=3;tgt.burnT=0;}
   tracers.push({fromPlayer:src.isPlayer,life:.12,color:w.id==='flamer'?'#e8762a':src.isPlayer?'#f4e1b3':'#d83a30',thick:w.id==='mortar'?4:2});
   spawnFloat(tgt,`-${dmg}`,src.isPlayer?'#e8762a':'#d83a30');
-  spawnSparks(src.isPlayer?280:200,4,5,src.isPlayer?'#e8762a':'#d83a30');
+  spawnSparks(src.isPlayer?combatESX:combatPSX,4,5,src.isPlayer?'#e8762a':'#d83a30');
 }
 function addLog(t){combatLog.unshift(t);if(combatLog.length>6)combatLog.pop();}
 function spawnFloat(v,t,c){floaters.push({v,text:t,color:c,y:0,life:1.0});}
@@ -1001,7 +1002,10 @@ function drawCombat(){
   const roadY=H*.82+26;
   ctx.strokeStyle='rgba(244,225,179,0.18)';ctx.lineWidth=2;ctx.setLineDash([24,18]);ctx.lineDashOffset=-(worldX%42);
   ctx.beginPath();ctx.moveTo(0,roadY);ctx.lineTo(W,roadY);ctx.stroke();ctx.setLineDash([]);
-  const baseY=Math.floor(H*.82)-4,pSX=220,eSX=Math.min(W-60,pSX+gap*SCALE);
+  const baseY=Math.floor(H*.82)-4;
+  const eSX=W-220;
+  const pSX=Math.max(60,eSX-gap*SCALE);
+  combatPSX=pSX; combatESX=eSX;
   for(const t of tracers){const x1=t.fromPlayer?pSX+carPxW(player.kind)/2:eSX-carPxW(enemy.kind)/2,x2=t.fromPlayer?eSX:pSX;ctx.strokeStyle=t.color;ctx.lineWidth=t.thick;ctx.beginPath();ctx.moveTo(x1,baseY-30);ctx.lineTo(x2,baseY-30);ctx.stroke();}
   drawV(pSX,baseY,player,true);drawV(eSX,baseY,enemy,false);
   for(const p of particles){ctx.fillStyle=p.color;ctx.fillRect(p.x,baseY-30+p.y,p.size,p.size);}
