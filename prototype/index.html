@@ -356,9 +356,9 @@ function carPxW(kind){const c=CAR[kind];return c?(c.len+6)*3:90;}
 // ═══════════════════════════════════════════════
 
 const CHASSIS=[
-  {id:'scout', name:'Scout', capacity:6,  s:{HP:12,MOV:4,ARM:0},desc:'輕快車架。速度快，側翼突破。'},
-  {id:'runner',name:'Runner',capacity:10, s:{HP:18,MOV:3,ARM:1},desc:'均衡戰車。強壯又靈活。'},
-  {id:'hauler',name:'Hauler',capacity:16, s:{HP:28,MOV:2,ARM:2},desc:'重裝坦克。骨板焊死，耐打。'},
+  {id:'scout', name:'Scout', capacity:6,  slots:1, s:{HP:12,MOV:4,ARM:0},desc:'輕快車架。速度快，側翼突破。'},
+  {id:'runner',name:'Runner',capacity:10, slots:2, s:{HP:18,MOV:3,ARM:1},desc:'均衡戰車。強壯又靈活。'},
+  {id:'hauler',name:'Hauler',capacity:16, slots:3, s:{HP:28,MOV:2,ARM:2},desc:'重裝坦克。骨板焊死，耐打。'},
 ];
 const WEAPONS=[
   {id:'flamer',    name:'Flamer',     weight:1,s:{DMG:2,RNG:2},desc:'短距，持續燃燒 3s。',    range:160,cd:0.5,dmg:7, burn:true},
@@ -395,11 +395,6 @@ function getBuild(){
   };
 }
 
-function getStance(weaponIds){
-  if(weaponIds.includes('mortar'))return{targetGap:480,fleeGap:320};
-  if(weaponIds.includes('harpoon'))return{targetGap:200,fleeGap:0};
-  return{targetGap:280,fleeGap:0};
-}
 
 function renderGarage(){
   document.getElementById('wb-sub').textContent='// '+activeTab;
@@ -445,11 +440,12 @@ function renderGarage(){
 function renderWeaponBuilder(content){
   const ch=CHASSIS.find(c=>c.id===build.chassis);
   const capacity=ch?ch.capacity:8;
+  const slots=ch?ch.slots:2;
   const usedW=build.weapons.reduce((s,id)=>{const w=WEAPONS.find(x=>x.id===id);return s+(w?w.weight:0);},0);
   const rem=capacity-usedW;
+  const usedSlots=build.weapons.length;
   const pct=Math.min(1,usedW/capacity);
   const barCol=pct>=1?'var(--blood)':pct>0.75?'#ddaa22':'var(--rust)';
-  const stance=getStance(build.weapons);
 
   content.style.cssText='display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:14px;height:100%';
 
@@ -461,7 +457,7 @@ function renderWeaponBuilder(content){
     <div>
       <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--dim);margin-bottom:4px">
         <span>容量 ${usedW} / ${capacity}</span>
-        <span style="color:${rem<=0?'var(--blood)':'var(--dim)'}">${rem<=0?'已滿':'剩餘 '+rem}</span>
+        <span style="color:${usedSlots>=slots?'var(--blood)':'var(--dim)'}">槽位 ${usedSlots} / ${slots}</span>
       </div>
       <div style="height:8px;background:var(--bg0);border:1px solid var(--line)">
         <div style="height:100%;width:${pct*100}%;background:${barCol};transition:width .15s"></div>
@@ -469,7 +465,7 @@ function renderWeaponBuilder(content){
     </div>
     <div id="wb-loadout" style="display:flex;flex-direction:column;gap:4px;flex:1;overflow:auto"></div>
     <div style="font-size:13px;color:var(--dim);padding-top:4px;border-top:1px dashed var(--line)" id="wb-stance">
-      ${build.weapons.length?'戰術距離 '+stance.targetGap+'px'+(stance.fleeGap?' / 逃跑 &lt;'+stance.fleeGap+'px':''):'// 選武器以顯示戰術'}
+      ${usedSlots>0?`已裝 ${usedSlots} / ${slots} 槽　容量剩餘 ${rem}`:'// 選武器以配置'}
     </div>`;
   content.appendChild(left);
 
@@ -498,7 +494,7 @@ function renderWeaponBuilder(content){
   right.style.cssText='display:flex;flex-direction:column;gap:4px;min-height:0';
   right.innerHTML='<div class="sk" style="font-size:10px;color:var(--dim);margin-bottom:4px">武器池</div>';
   WEAPONS.forEach(w=>{
-    const canAdd=rem>=w.weight;
+    const canAdd=rem>=w.weight&&usedSlots<slots;
     const dps=(w.dmg/w.cd).toFixed(1);
     const el=document.createElement('div');
     el.style.cssText=`display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--bg0);border:1px solid var(--line);cursor:${canAdd?'pointer':'not-allowed'};opacity:${canAdd?1:0.38}`;
@@ -890,19 +886,18 @@ function startCombat(nodeType){
   const totalArm=ch.s.ARM+ar.s.ARM;
   const totalMov=ch.s.MOV+en.s.MOV;
   const pSpd=1.2+totalMov*0.35;
-  const stance=getStance(build.weapons);
 
   player={isPlayer:true,name:runState.callsign,kind:runState.chassis,color:'#e8762a',
-    hp:totalHp,maxHp:runState.maxHp,spd:1.5,maxSpd:pSpd,arm:totalArm,
+    hp:totalHp,maxHp:runState.maxHp,spd:pSpd,maxSpd:pSpd,arm:totalArm,
     weapons:wps.map(wp=>({...wp,timer:0})),
-    tgt:stance.targetGap,flash:0,burn:0,burnT:0,dmgOut:0,dmgIn:0,hits:0};
+    flash:0,burn:0,burnT:0,dmgOut:0,dmgIn:0,hits:0};
 
   const pool=ENEMIES[nodeType]||ENEMIES.fight;
   const eDef=pool[Math.floor(Math.random()*pool.length)];
   enemy={isPlayer:false,name:eDef.name,kind:eDef.kind,color:'#d83a30',
-    hp:eDef.hp,maxHp:eDef.hp,spd:1.2,maxSpd:eDef.spd,arm:eDef.arm,
+    hp:eDef.hp,maxHp:eDef.hp,spd:eDef.spd,maxSpd:eDef.spd,arm:eDef.arm,
     weapons:[{id:'gun',name:'步槍',range:eDef.wRange,cd:eDef.wCd,dmg:eDef.wDmg,timer:0}],
-    tgt:eDef.wRange*0.6,flash:0,burn:0,burnT:0,dmgOut:0,dmgIn:0,hits:0};
+    flash:0,burn:0,burnT:0,dmgOut:0,dmgIn:0,hits:0};
 
   gap=450;phase='combat';elapsed=0;
   combatLog=[`// ${player.name} vs ${enemy.name}`];
@@ -940,12 +935,10 @@ function lerp(a,b,t){return a+(b-a)*Math.min(1,Math.max(0,t));}
 function update(dt){
   elapsed+=dt;
   tickV(player,dt);tickV(enemy,dt);
-  aiSpd(player,gap,dt);
   for(const w of player.weapons){
     w.timer=Math.max(0,w.timer-dt);
     if(w.timer<=0&&gap<=w.range)fireWeapon(w,player,enemy);
   }
-  aiSpd(enemy,gap,dt);
   for(const w of enemy.weapons){
     w.timer=Math.max(0,w.timer-dt);
     if(w.timer<=0&&gap<=w.range)fireWeapon(w,enemy,player);
@@ -971,18 +964,6 @@ function update(dt){
 function tickV(v,dt){
   v.flash=Math.max(0,v.flash-dt*3);
   if(v.burn>0){v.burnT+=dt;if(v.burnT>=1){v.burnT-=1;v.hp-=1;v.flash=0.5;addLog('🔥 燃燒 -1');spawnFloat(v,'-1 🔥','#e8762a');v.burn--;}}
-}
-function aiSpd(v,g,dt){
-  const want=v.tgt;
-  if(v.isPlayer){
-    if(g>want+30)v.spd=Math.min(v.maxSpd,v.spd+v.maxSpd*2.5*dt);
-    else if(g<want-30)v.spd=Math.max(0.4,v.spd-v.maxSpd*2.0*dt);
-    else v.spd=lerp(v.spd,v.maxSpd*.7,dt*3);
-  }else{
-    if(g>want+30)v.spd=Math.max(0.4,v.spd-v.maxSpd*1.8*dt);
-    else if(g<want-30)v.spd=Math.min(v.maxSpd,v.spd+v.maxSpd*2.5*dt);
-    else v.spd=lerp(v.spd,v.maxSpd*.7,dt*3);
-  }
 }
 function fireWeapon(w,src,tgt){
   const dmg=Math.max(1,Math.floor(w.dmg*(0.85+Math.random()*.3)-tgt.arm*.5));
