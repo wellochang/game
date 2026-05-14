@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 主要開發目標
 
 **`prototype/index.html`**（`http://localhost:8766`）是目前唯一活躍開發的版本。
-`index.html` + `src/*.jsx` 是 React 設計稿參考，不做功能迭代。
+`design_demo.html` + `src/*.jsx` 是 React 設計稿參考，不做功能迭代。
 
 ## 回覆規則
 
@@ -19,14 +19,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This project has no build step. Serve the files with Python's built-in HTTP server — opening via `file://` will block font and script loading due to CORS.
 
 ```bash
-# Main React version (root index.html)
+# React design demo (root design_demo.html)
 python3 -m http.server 8765 --directory /path/to/game
 
 # Vanilla prototype (prototype/index.html) — most active development target
 python3 -m http.server 8766 --directory /path/to/game/prototype
 ```
 
-Then open `http://localhost:8766` (prototype) or `http://localhost:8765` (React).
+Then open `http://localhost:8766` (prototype) or `http://localhost:8765/design_demo.html` (React design demo).
 
 ## Two parallel implementations
 
@@ -35,7 +35,7 @@ This repo contains two separate implementations of the same game ("廢土衝鋒 
 | Path | Stack | Status |
 |------|-------|--------|
 | `prototype/index.html` | Vanilla JS + Canvas, single self-contained file (~1100 lines) | **Primary active target** |
-| `index.html` + `src/*.jsx` | React 18 + Babel standalone (no bundler), 7 JSX files | Design handoff reference |
+| `design_demo.html` + `src/*.jsx` | React 18 + Babel standalone (no bundler), 7 JSX files | Design handoff reference |
 
 The React version in `src/` was generated from a Claude Design handoff (`prototype/game/project/`). The vanilla prototype in `prototype/index.html` is where actual gameplay iteration happens.
 
@@ -78,7 +78,7 @@ Each file exports one global via `window.X = X` (Babel standalone, no ES modules
 - `game.jsx` — `App` root, screen state machine (`title | garage | map | combat | event | scrap | gameover`)
 - `tweaks-panel.jsx` — live-edit panel for design tweaks
 
-Load order in `index.html` matters: `sprites → ui → garage → map → combat → game`.
+Load order in `design_demo.html` matters: `sprites → ui → garage → map → combat → game`.
 
 ## Combat mechanics reference
 
