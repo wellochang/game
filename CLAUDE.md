@@ -2,6 +2,11 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## 主要開發目標
+
+**`prototype/index.html`**（`http://localhost:8766`）是目前唯一活躍開發的版本。
+`index.html` + `src/*.jsx` 是 React 設計稿參考，不做功能迭代。
+
 ## 回覆規則
 
 - 直接給結果，不要前言、不要總結
