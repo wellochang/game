@@ -4,797 +4,1168 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>廢土衝鋒 — v0.5</title>
+<link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&display=swap" rel="stylesheet">
 <style>
+:root{
+  --bg0:#0e0a07;--bg1:#1a120c;--bg2:#251a11;--bg3:#382617;
+  --ink:#f4e1b3;--dim:#b89a6a;--faint:#6b5638;
+  --rust:#c45a1c;--bright:#e8762a;--blood:#a4232a;
+  --line:#4a341e;--acid:#b6c43a;--steel:#5b5b62;
+}
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:#0e0900;display:flex;flex-direction:column;align-items:center;
-     justify-content:center;min-height:100vh;font-family:'Courier New',monospace;
-     color:#ddd;overflow-x:hidden}
+body{
+  background:radial-gradient(ellipse at 50% 15%,#3a2010 0%,#1a0f08 55%,#0a0604 100%);
+  color:var(--ink);font-family:'VT323','Courier New',monospace;
+  font-size:18px;min-height:100vh;overflow-x:hidden
+}
+canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges}
+button{font-family:inherit;color:inherit;cursor:pointer}
+.sk{font-family:'Silkscreen',monospace;letter-spacing:.05em}
+.screen{display:none;min-height:100vh;flex-direction:column;padding:20px;gap:14px}
+.screen.active{display:flex}
 
-h1{font-size:clamp(16px,5vw,22px);color:#e8a040;margin-bottom:6px;letter-spacing:3px}
-.sub{font-size:12px;color:#664433;margin-bottom:20px;display:block}
-.section-lbl{color:#664422;font-size:10px;margin-bottom:8px;letter-spacing:1px;
-  border-bottom:1px solid #1e1000;padding-bottom:3px}
+/* ── shared header ── */
+.g-hdr{display:flex;align-items:baseline;gap:14px;flex-shrink:0}
+.g-hdr h1{font-size:20px;color:var(--bright);letter-spacing:.1em}
+.g-hdr .sub{font-size:16px;color:var(--dim)}
+.g-hdr .run{margin-left:auto;font-size:16px;color:var(--dim)}
 
-/* 車體選擇 */
-#chassis-sel{text-align:center;width:100%;padding:24px 16px}
-.cards{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
-.card{background:#120b00;border:2px solid #2e1e00;padding:18px 16px;
-      width:min(200px,calc(100vw - 40px));cursor:pointer;text-align:left;transition:.12s}
-.card:hover{background:#1c1200}
-.card .cn{font-size:15px;font-weight:bold;margin-bottom:8px}
-.card .cs{font-size:11px;color:#997744;margin-bottom:3px}
-.card .cd{font-size:10px;color:#776655;margin-top:8px;line-height:1.7}
+/* ── panel ── */
+.panel{background:var(--bg1);border:2px solid var(--line);position:relative;display:flex;flex-direction:column}
+.panel::before{content:'';position:absolute;top:-3px;left:-3px;width:6px;height:6px;background:var(--rust);border:1px solid var(--bg0)}
+.panel::after {content:'';position:absolute;top:-3px;right:-3px;width:6px;height:6px;background:var(--rust);border:1px solid var(--bg0)}
+.bolts::before{content:'';position:absolute;bottom:-3px;left:-3px;width:6px;height:6px;background:var(--rust);border:1px solid var(--bg0)}
+.bolts::after {content:'';position:absolute;bottom:-3px;right:-3px;width:6px;height:6px;background:var(--rust);border:1px solid var(--bg0)}
+.panel-hdr{padding:8px 14px 6px;border-bottom:2px solid var(--line);background:var(--bg2);display:flex;align-items:baseline;gap:10px;flex-shrink:0}
+.panel-hdr .lbl{font-size:11px;color:var(--bright);letter-spacing:.1em}
+.panel-hdr .info{font-size:14px;color:var(--dim)}
 
-/* 武器配裝 */
-#weapon-sel{display:none;width:100%;max-width:900px;padding:20px 16px;text-align:center}
-#builder-layout{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;
-  text-align:left;margin-top:4px}
-#loadout-panel,#weapon-pool-panel{background:#120b00;border:1px solid #2e1e00;
-  padding:14px;min-width:260px;flex:1;max-width:380px}
+/* ── Garage ── */
+.g-body{flex:1;display:grid;grid-template-columns:360px 1fr;gap:14px;min-height:0}
+#preview-wrap{flex:1;position:relative;background:radial-gradient(ellipse at 50% 60%,#2a1c10 0%,#14100a 100%);overflow:hidden;min-height:160px;display:flex;align-items:center;justify-content:center}
+#preview-wrap .cl{position:absolute;font-size:12px;color:var(--faint)}
+.stat-area{padding:14px;border-top:2px solid var(--line);background:var(--bg2);display:flex;flex-direction:column;gap:6px;flex-shrink:0}
+.stat-row{display:flex;align-items:center;gap:8px}
+.stat-lbl{color:var(--dim);width:52px;font-size:10px;font-family:'Silkscreen',monospace;letter-spacing:.06em}
+.stat-track{flex:1;height:12px;background:var(--bg0);border:1px solid var(--line);position:relative}
+.stat-fill{position:absolute;top:1px;bottom:1px;left:1px;transition:width .18s}
+.stat-num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--ink);text-shadow:1px 1px 0 var(--bg0)}
+.tabs{display:flex;border-bottom:2px solid var(--line);flex-shrink:0}
+.tab-btn{flex:1;padding:10px 8px;background:transparent;border:none;border-right:1px solid var(--line);color:var(--dim);font-size:10px;letter-spacing:.08em;text-align:left;display:flex;flex-direction:column;gap:3px}
+.tab-btn.active{background:var(--bg3);color:var(--bright)}
+.tab-cur{font-family:'VT323',monospace;font-size:14px;color:var(--ink);letter-spacing:0}
+.tab-content{flex:1;padding:14px;overflow:auto}
+.part-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:10px}
+.part-card{background:var(--bg2);border:2px solid var(--line);padding:10px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;box-shadow:3px 3px 0 var(--bg0)}
+.part-card:hover{background:var(--bg3)}
+.part-card.sel{background:var(--bg3);border-color:var(--bright);box-shadow:0 0 0 1px var(--bright),3px 3px 0 var(--bg0)}
+.part-preview{height:60px;display:flex;align-items:center;justify-content:center}
+.part-name{font-size:11px;color:var(--ink);letter-spacing:.06em;font-family:'Silkscreen',monospace}
+.part-card.sel .part-name{color:var(--bright)}
+.part-stats{display:flex;flex-wrap:wrap;justify-content:center;gap:2px 8px;font-size:13px;color:var(--dim)}
+.part-stats em{font-style:normal;color:var(--ink)}
+.part-desc{font-size:12px;color:var(--faint);text-align:center;line-height:1.3;margin-top:2px}
+.wb-footer{padding:12px 14px;border-top:2px solid var(--line);background:var(--bg2);display:flex;align-items:center;gap:12px;flex-shrink:0}
+.cs-lbl{font-size:10px;color:var(--dim);letter-spacing:.08em;font-family:'Silkscreen',monospace}
+#cs-input{background:var(--bg0);border:1px solid var(--line);color:var(--ink);padding:6px 10px;font-family:inherit;font-size:18px;letter-spacing:.06em;width:170px}
+.pxbtn{background:var(--bg2);color:var(--ink);border:2px solid var(--line);border-radius:0;padding:10px 20px;font-size:11px;letter-spacing:.08em;font-family:'Silkscreen',monospace;box-shadow:3px 3px 0 var(--bg0);cursor:pointer}
+.pxbtn:hover{background:var(--bg3);border-color:var(--bright);color:var(--bright)}
+.pxbtn:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--bg0)}
+.pxbtn.danger{border-color:var(--blood);color:var(--blood)}
+.pxbtn.danger:hover{background:#1a0808;border-color:var(--blood)}
 
-/* 容量條 */
-#cap-bar-track{height:8px;background:#0e0900;border:1px solid #1e1000;margin-bottom:10px;position:relative}
-#cap-bar-fill{height:100%;width:0%;background:#446633;transition:width .15s}
-#cap-bar-label{font-size:10px;color:#664422;margin-bottom:8px;display:flex;justify-content:space-between}
+/* ── Map ── */
+.map-body{flex:1;display:grid;grid-template-columns:1fr 260px;gap:14px;min-height:0}
+#map-c{display:block;width:100%;flex:1;min-height:0;cursor:pointer}
+.map-panel{flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0}
+.log-panel{display:flex;flex-direction:column}
+.log-body{flex:1;padding:14px;overflow:auto;display:flex;flex-direction:column;gap:8px}
+.log-entry{font-size:15px;color:var(--dim);line-height:1.3}
+.log-entry::before{content:'› ';color:var(--rust)}
 
-.loadout-item{display:flex;align-items:center;justify-content:space-between;
-  padding:5px 8px;margin:3px 0;background:#1a1000;border:1px solid #2e1e00;cursor:pointer}
-.loadout-item:hover{border-color:#cc5522}
-.loadout-item .li-name{font-size:12px;font-weight:bold}
-.loadout-item .li-stats{font-size:10px;color:#776655}
-.loadout-item .li-rm{font-size:10px;color:#443322}
+/* ── Scrap / Event ── */
+.se-body{flex:1;display:grid;gap:14px;min-height:0}
+#scrap .se-body{grid-template-columns:repeat(3,1fr)}
+#event .se-body{grid-template-columns:300px 1fr}
+.option-card{display:flex;flex-direction:column;align-items:center;gap:14px;padding:20px}
+.option-card .icon{font-size:48px;line-height:1}
+.flavor-text{padding:20px 24px;font-size:20px;color:var(--ink);line-height:1.45}
+.choices{padding:14px;border-top:2px solid var(--line);background:var(--bg2);display:flex;flex-direction:column;gap:8px;flex-shrink:0}
 
-.pool-item{display:flex;align-items:center;gap:8px;padding:6px 8px;margin:3px 0;
-  background:#0e0900;border:1px solid #1e1000;cursor:pointer}
-.pool-item:hover:not(.disabled){background:#1a1000;border-color:#cc8833}
-.pool-item.disabled{opacity:0.35;cursor:not-allowed}
-.pool-item .pi-weight{background:#1e1200;border:1px solid #443322;color:#cc8833;
-  font-size:10px;padding:1px 5px;min-width:32px;text-align:center;flex-shrink:0}
-.pool-item .pi-name{font-size:12px;font-weight:bold;min-width:34px}
-.pool-item .pi-stats{font-size:10px;color:#776655}
+/* ── Combat ── */
+#game{display:none;flex-direction:column;width:100%;min-height:100vh;padding:20px;gap:14px}
+.enc-body{flex:1;min-height:0;display:grid;grid-template-columns:1fr 290px;gap:14px}
+.enc-hw{display:flex;flex-direction:column}
+.enc-canvas-wrap{flex:1;min-height:0;position:relative;overflow:hidden;background:#0a0604}
+#cc{position:absolute;inset:0;width:100%;height:100%;display:block;image-rendering:pixelated;image-rendering:crisp-edges}
+.enc-side{display:flex;flex-direction:column;overflow:hidden}
+.pxbtn.active{background:var(--rust);color:var(--bg0);border-color:var(--bright)}
 
-#confirm-btn{margin-top:12px;width:100%;background:#120900;border:1px solid #443322;
-  color:#ccaa88;padding:8px 0;cursor:pointer;font-family:inherit;font-size:13px;letter-spacing:1px}
-#confirm-btn:not([disabled]):hover{background:#1e1200}
-#confirm-btn[disabled]{opacity:0.4;cursor:not-allowed}
-#back-chassis{margin-top:12px;background:none;border:none;color:#554433;
-  font-family:inherit;font-size:11px;cursor:pointer}
-
-/* 戰鬥 */
-#game{display:none;flex-direction:column;align-items:center;width:100%;max-width:900px}
-canvas{display:block;width:100%;aspect-ratio:900/430}
-#rotate-hint{display:none;font-size:11px;color:#664433;margin-top:8px;text-align:center}
-@media (orientation:portrait) and (max-width:600px){#rotate-hint{display:block}}
-
-/* 結果 */
-#ov{position:fixed;inset:0;display:none;align-items:center;justify-content:center;
-    background:rgba(0,0,0,.82);flex-direction:column;gap:10px;padding:20px}
+/* ── End overlay ── */
+#ov{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.82);flex-direction:column;gap:12px;padding:20px;z-index:10}
 #ov h2{font-size:clamp(22px,6vw,36px);letter-spacing:5px}
 #ov .stats{font-size:clamp(11px,3vw,13px);color:#aa8855;text-align:center;line-height:2.2}
-.ov-btn{background:#120900;border:1px solid #443322;color:#ccaa88;padding:9px 28px;
-  cursor:pointer;font-family:'Courier New',monospace;font-size:13px;letter-spacing:1px}
-.ov-btn:hover{background:#1e1200}
-
-/* 詳細日誌 */
-#logpanel{width:100%;max-height:220px;overflow-y:auto;background:#060400;
-  border:1px solid #1e1000;margin-top:6px;padding:6px 10px;font-size:11px;line-height:1.85}
-#logpanel .lhdr{color:#664422;margin-bottom:2px;border-bottom:1px solid #1e1000;padding-bottom:2px}
-#logpanel .plog{color:#88cc66}
-#logpanel .elog{color:#cc5544}
-#logpanel .slog{color:#554422}
 </style>
 </head>
 <body>
 
-<!-- ① 車體選擇 -->
-<div id="chassis-sel">
-  <h1>廢土衝鋒</h1>
-  <span class="sub">選擇車體</span>
-  <div class="cards" id="chassis-cards"></div>
-</div>
-
-<!-- ② 武器配裝 -->
-<div id="weapon-sel">
-  <h1>武器配裝</h1>
-  <span class="sub" id="slot-hint">已用 0 / N 格</span>
-  <div id="builder-layout">
-    <div id="loadout-panel">
-      <div class="section-lbl">已配置武器
-        <span id="loadout-stance" style="float:right;color:#886644;font-size:10px"></span>
+<!-- ═══ GARAGE ═══ -->
+<div id="garage" class="screen">
+  <div class="g-hdr">
+    <h1 class="sk">THE GARAGE</h1>
+    <span class="sub">// 組裝你的廢土座車</span>
+    <span class="run" id="g-run">BONESAW</span>
+  </div>
+  <div class="g-body">
+    <div class="panel bolts">
+      <div class="panel-hdr"><span class="lbl sk">THE RIG</span><span class="info" id="p-callsign">// BONESAW</span></div>
+      <div id="preview-wrap">
+        <canvas id="preview-c"></canvas>
+        <span class="cl" style="top:8px;left:10px">┌── 側視圖</span>
+        <span class="cl" style="top:8px;right:10px">SCALE 3× ──┐</span>
+        <span class="cl" id="lbl-ch" style="bottom:8px;left:10px">└── runner</span>
+        <span class="cl" id="lbl-wp" style="bottom:8px;right:10px">autocannon ──┘</span>
       </div>
-      <div id="cap-bar-label"><span id="cap-used">容量 0 / 0</span><span id="cap-pct"></span></div>
-      <div id="cap-bar-track"><div id="cap-bar-fill"></div></div>
-      <div id="loadout-list"></div>
-      <button id="confirm-btn" disabled onclick="confirmLoadout()">確認出擊 →</button>
+      <div class="stat-area">
+        <div class="stat-row"><span class="stat-lbl sk">HULL</span><div class="stat-track"><div class="stat-fill" id="b-hull" style="background:var(--blood)"></div><div class="stat-num" id="v-hull"></div></div></div>
+        <div class="stat-row"><span class="stat-lbl sk">ARMOR</span><div class="stat-track"><div class="stat-fill" id="b-arm" style="background:var(--steel)"></div><div class="stat-num" id="v-arm"></div></div></div>
+        <div class="stat-row"><span class="stat-lbl sk">SPEED</span><div class="stat-track"><div class="stat-fill" id="b-spd" style="background:var(--rust)"></div><div class="stat-num" id="v-spd"></div></div></div>
+        <div class="stat-row"><span class="stat-lbl sk">FUEL</span><div class="stat-track"><div class="stat-fill" id="b-fuel" style="background:var(--acid)"></div><div class="stat-num" id="v-fuel"></div></div></div>
+      </div>
     </div>
-    <div id="weapon-pool-panel">
-      <div class="section-lbl">武器池</div>
-      <div id="weapon-pool"></div>
+    <div class="panel bolts" id="workbench">
+      <div class="panel-hdr"><span class="lbl sk">WORKBENCH</span><span class="info" id="wb-sub">// chassis</span></div>
+      <div class="tabs" id="tabs"></div>
+      <div class="tab-content" id="tab-content"></div>
+      <div class="wb-footer">
+        <span class="cs-lbl">CALLSIGN</span>
+        <input id="cs-input" maxlength="14" value="BONESAW">
+        <button id="roll-btn" class="pxbtn sk" style="margin-left:auto">ROLL OUT →</button>
+      </div>
     </div>
   </div>
-  <button id="back-chassis" onclick="backToSel()">← 重新選擇車體</button>
 </div>
 
-<!-- ③ 戰鬥 -->
+<!-- ═══ MAP ═══ -->
+<div id="map" class="screen">
+  <div class="g-hdr">
+    <h1 class="sk">THE WASTELAND</h1>
+    <span class="sub">// 選擇下一段路線</span>
+    <span class="run" id="map-stats"></span>
+  </div>
+  <div class="map-body">
+    <div class="panel bolts map-panel">
+      <div class="panel-hdr"><span class="lbl sk">ROUTE MAP</span><span class="info" id="map-sector"></span></div>
+      <canvas id="map-c"></canvas>
+    </div>
+    <div class="panel bolts log-panel">
+      <div class="panel-hdr"><span class="lbl sk">LOGBOOK</span></div>
+      <div class="log-body" id="log-body">
+        <div style="font-size:15px;color:var(--faint);font-style:italic">// 尚無紀錄 //</div>
+      </div>
+      <div style="padding:10px 14px;border-top:2px solid var(--line);background:var(--bg2)">
+        <button class="pxbtn sk" style="width:100%;font-size:10px" onclick="goToGarage()">↩ 返回車庫</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ SCRAP ═══ -->
+<div id="scrap" class="screen">
+  <div class="g-hdr">
+    <h1 class="sk">SCRAPYARD</h1>
+    <span class="sub">// 廢鐵商人</span>
+    <span class="run" id="scrap-stats"></span>
+  </div>
+  <div class="se-body">
+    <div class="panel bolts">
+      <div class="panel-hdr"><span class="lbl sk">修復船殼</span><span class="info">// 快速補丁</span></div>
+      <div class="option-card">
+        <div class="icon">🔧</div>
+        <div style="font-size:18px;color:var(--dim);text-align:center">回復 <span style="color:var(--bright)">+5 HULL</span><br>花費 <span style="color:var(--bright)">2 廢料</span></div>
+        <button class="pxbtn sk" id="repair-btn">敲一敲</button>
+      </div>
+    </div>
+    <div class="panel bolts">
+      <div class="panel-hdr"><span class="lbl sk">焊接裝甲</span><span class="info">// 永久升級</span></div>
+      <div class="option-card">
+        <div class="icon">⚙️</div>
+        <div style="font-size:18px;color:var(--dim);text-align:center"><span style="color:var(--bright)">+3 MAX HULL</span><br>花費 <span style="color:var(--bright)">4 廢料</span></div>
+        <button class="pxbtn sk" id="weld-btn">焊上去</button>
+      </div>
+    </div>
+    <div class="panel bolts">
+      <div class="panel-hdr"><span class="lbl sk">離開</span><span class="info">// 繼續上路</span></div>
+      <div class="option-card">
+        <div class="icon">💨</div>
+        <div style="font-size:18px;color:var(--dim);text-align:center">空手離開。<br>把廢料留給老大。</div>
+        <div style="flex:1"></div>
+        <button class="pxbtn sk" onclick="leaveScrap()">出發 →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ EVENT ═══ -->
+<div id="event" class="screen">
+  <div class="g-hdr">
+    <h1 class="sk">WAYPOINT</h1>
+    <span class="sub">// 路上遇到了什麼</span>
+    <span class="run" id="event-stats"></span>
+  </div>
+  <div class="se-body">
+    <div class="panel bolts">
+      <div class="panel-hdr"><span class="lbl sk">目擊</span></div>
+      <div class="option-card">
+        <div class="icon" id="ev-icon">❓</div>
+        <div class="sk" style="font-size:13px;color:var(--bright);letter-spacing:.08em;text-align:center" id="ev-title"></div>
+      </div>
+    </div>
+    <div class="panel bolts">
+      <div class="panel-hdr"><span class="lbl sk">紀錄</span><span class="info" id="ev-sub"></span></div>
+      <div class="flavor-text" id="ev-body"></div>
+      <div style="flex:1"></div>
+      <div class="choices" id="ev-choices"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ COMBAT (not .screen, handled manually) ═══ -->
 <div id="game">
-  <canvas id="c" width="900" height="430"></canvas>
-  <p id="rotate-hint">↺ 建議橫置裝置以獲得最佳體驗</p>
-  <div id="logpanel"><div class="lhdr">━ 詳細戰鬥紀錄</div></div>
+  <div class="g-hdr">
+    <h1 class="sk">ENGAGEMENT</h1>
+    <span class="sub" id="enc-type">// raiders</span>
+    <span class="run" id="enc-cs"></span>
+  </div>
+  <div class="enc-body">
+    <!-- 左：戰場畫布 -->
+    <div class="panel bolts enc-hw">
+      <div class="panel-hdr"><span class="lbl sk">HIGHWAY</span><span class="info" id="enc-sim">// 1×</span></div>
+      <div class="enc-canvas-wrap">
+        <canvas id="cc"></canvas>
+      </div>
+      <div style="padding:10px 14px;border-top:2px solid var(--line);background:var(--bg2);display:flex;gap:8px;align-items:center;flex-shrink:0">
+        <button class="pxbtn sk" id="btn-pause" onclick="togglePause()" style="font-size:10px">⏸ PAUSE</button>
+        <button class="pxbtn sk active" id="btn-1x" onclick="setSimSpeed(1)" style="font-size:10px">1×</button>
+        <button class="pxbtn sk" id="btn-2x" onclick="setSimSpeed(2)" style="font-size:10px">2×</button>
+        <button class="pxbtn sk" id="btn-4x" onclick="setSimSpeed(4)" style="font-size:10px">4×</button>
+        <div style="flex:1"></div>
+        <button class="pxbtn sk danger" id="btn-retreat" onclick="retreatCombat()" style="font-size:10px">↶ RETREAT</button>
+      </div>
+    </div>
+    <!-- 右：狀態面板 -->
+    <div class="panel bolts enc-side">
+      <div class="panel-hdr"><span class="lbl sk">STATUS</span></div>
+      <div style="flex:1;padding:14px;display:flex;flex-direction:column;gap:10px;overflow:auto">
+        <div class="sk" style="font-size:11px;color:var(--bright)" id="cs-pname">YOU</div>
+        <div class="stat-row"><span class="stat-lbl sk">HULL</span><div class="stat-track"><div class="stat-fill" id="cs-hp-fill" style="background:var(--blood)"></div><div class="stat-num" id="cs-hp-txt"></div></div></div>
+        <div class="stat-row"><span class="stat-lbl sk">SPEED</span><div class="stat-track"><div class="stat-fill" id="cs-sp-fill" style="background:var(--rust)"></div><div class="stat-num" id="cs-sp-txt"></div></div></div>
+        <div id="cs-extra" style="font-size:14px;color:var(--dim)"></div>
+        <hr style="border:none;border-top:1px dashed var(--line);margin:2px 0">
+        <div class="sk" style="font-size:11px;color:var(--dim)" id="cs-ename">HOSTILE</div>
+        <div class="stat-row"><span class="stat-lbl sk">HULL</span><div class="stat-track"><div class="stat-fill" id="cs-ehp-fill" style="background:#a4232a"></div><div class="stat-num" id="cs-ehp-txt"></div></div></div>
+        <div id="cs-edist" style="font-size:14px;color:var(--dim)"></div>
+        <hr style="border:none;border-top:1px dashed var(--line);margin:2px 0">
+        <div class="sk" style="font-size:11px;color:var(--dim)">RADIO CHATTER</div>
+        <div id="cs-log" style="display:flex;flex-direction:column;gap:3px;font-size:15px;flex:1;overflow:auto"></div>
+      </div>
+    </div>
+  </div>
 </div>
 
-<!-- ④ 結果 -->
+<!-- ═══ END OVERLAY ═══ -->
 <div id="ov">
-  <h2 id="ot"></h2>
+  <h2 id="ot" class="sk"></h2>
   <div class="stats" id="ostats"></div>
-  <button class="ov-btn" id="ov-btn2" style="display:none" onclick="continueToFight2()">繼續挑戰第二關 →</button>
-  <button class="ov-btn" onclick="backToSel()">重新選擇</button>
+  <button class="pxbtn sk" onclick="backToGarage()" style="margin-top:8px">重新組裝</button>
 </div>
 
 <script>
 'use strict';
 
 // ═══════════════════════════════════════════════
-// 座標常數
+// PIXEL SPRITE SYSTEM
 // ═══════════════════════════════════════════════
-const SCALE   = 0.72;
-const SY      = 152;
-const GY      = 207;
-const PANEL_Y = 244;
-const LOG_Y   = 358;
+
+const PAL={
+  '.':null,'0':'#0e0a07','1':'#1a120c','2':'#251a11','3':'#382617',
+  '4':'#4a341e','5':'#6b5638','6':'#8a7146','7':'#b89a6a','8':'#e9d7a5','9':'#f4e1b3',
+  'M':'#3a3a40','m':'#5b5b62','L':'#7a7a80','l':'#9a9a9e',
+  'R':'#7a2c0e','r':'#c45a1c','o':'#e8762a','O':'#f59a3a',
+  'B':'#6b1418','b':'#a4232a','d':'#d83a30',
+  'A':'#4a5418','a':'#b6c43a','S':'#3a4a5a','s':'#6a8aa0',
+  'k':'rgba(0,0,0,0.5)','W':'#c8b07a','w':'#e9d7a5',
+};
+function drawSprite(ctx,sp,ox,oy,sc){
+  for(let r=0;r<sp.length;r++){const line=sp[r];for(let c=0;c<line.length;c++){const col=PAL[line[c]];if(!col)continue;ctx.fillStyle=col;ctx.fillRect(ox+c*sc,oy+r*sc,sc,sc);}}
+}
+
+const TD={
+  scout:["....MMMM....","...MmmmmM...","..MmllllmM..",".MmlssssLmM.","MmLLssssLLmM","MmLLssssLLmM","MmllllllllmM","MmLLrrrrLLmM","MmLLrooorLLM","MmllrooorllM",".MmllrrrlmM.","..MmlllmM...","...MmmmM....","....kkkk...."],
+  runner:["...MMMMMM...","..MmmmmmmmM.",".MmllllllmM.","MmLLsssssLmM","MmLssssssLmM","MmLLLLLLLLmM","MmlrrrrrrlmM","MmLrooooorLM","MmLrooooorLM","MmlrooooorlM","MmLLrrrrrLLM",".MmllrrrllmM","..MmmllmmM..","...kkkkkk..."],
+  hauler:["..MMMMMMMM..",".MmmmmmmmmM.","MmLLLLLLLLmM","MmLssssssLmM","MmLssssssLmM","MmLLLLLLLLmM","MmlrrRRrrrlM","MmLrRRRRRrLM","MmLrRRBBRrLM","MmLrRRBBRrLM","MmLrRRRRRrLM","MmlrrRRrrrlM","MmLLLLLLLLmM",".MmmmmmmmmM."],
+};
+const WPS={
+  harpoon:   ["....MMMM....","....MllM....","....MllM....","....MllM....","....MllM....","....MLLM...."],
+  flamer:    ["....rRoo....","...rROOob...","...rROOob...","....rRoo...."],
+  autocannon:["....MmmM....","...MLllLM...","..MLlllllM..","...MLLLLM...","....MMMM...."],
+  mortar:    [".....MM.....","....MmmM....","...MmllmM...","...MmllmM...","....MmmM...."],
+};
+// Node icons 12×12
+const ICONS={
+  fight: ["....bb......","...bbbb.....","..bb..bb....","...bbbb.....","....bb......","............","....bb......","............","............","............","............","............"],
+  elite: ["....dd......","...dbbd.....","..dbBBbd....","...dbBbd....","....dbbd....","......d.....","...dbbbd....","..dbBBBbd...","...dbbbd....","....dd......","............","............"],
+  scrap: ["............","...MmmmmM...","..MmLLLLmM..",".MmL7777LmM.","MmL77WW77LmM","MmL777777LmM",".MmL7777LmM.","..MmLLLLmM...","...MmmmmM...","............","............","............"],
+  event: ["....8888....","...8oooo8...","..8oo88oo8..",".8o8....8o8.",".8o8....8o8.","....8o8.....","...8o8......","...8o8......","...8o8......","............","...8o8......","............"],
+  boss:  ["...kkkkkk...","..kRRRRRRk..","kRbBBBBbRk","kRbBddddBbRk","kRbBdOOdBbRk","kRbBdooBdBRk","kRbBdOOdBbRk","kRbBBddBBbRk",".kRbBBBBbRk.","..kRRRRRRk..","...kkkkkk...","............"],
+};
+
+const CAR={
+  scout:     {len:22,top:4,bh:4,  cab:{x:7, w:7, h:3},body:'#c45a1c',dk:'#7a2c0e',lt:'#e8762a',cdark:'#3a2014',gl:'#6a8aa0',wh:[4,16],   wr:3,spoiler:{x:21,w:3}},
+  runner:    {len:28,top:3,bh:5,  cab:{x:8, w:9, h:4},body:'#a85020',dk:'#5e2810',lt:'#e8762a',cdark:'#3a2014',gl:'#6a8aa0',wh:[4,22],   wr:4,bullbar:true},
+  hauler:    {len:36,top:2,bh:7,  cab:{x:4, w:10,h:5},body:'#8a4018',dk:'#3a1d0a',lt:'#c45a1c',cdark:'#2a1408',gl:'#6a8aa0',wh:[4,20,32],wr:4,trailer:{x:16,w:22,top:1,h:7},armored:true},
+  raider:    {len:24,top:3,bh:5,  cab:{x:8, w:7, h:3},body:'#7a2c0e',dk:'#3a1408',lt:'#c45a1c',cdark:'#1a0a04',gl:'#3a4a5a',wh:[4,18],   wr:4,spikes:true},
+  scraprig:  {len:30,top:2,bh:6,  cab:{x:6, w:10,h:5},body:'#7a2c0e',dk:'#3a1408',lt:'#a4232a',cdark:'#1a0a04',gl:'#3a4a5a',wh:[4,16,26],wr:4,junk:true,spikes:true},
+  juggernaut:{len:44,top:1,bh:9,  cab:{x:4, w:12,h:7},body:'#5a1818',dk:'#1a0808',lt:'#a4232a',cdark:'#0a0404',gl:'#3a1a1a',wh:[5,18,30,40],wr:5,armored:true,plates:true,ram:true},
+};
+
+function drawCar(ctx,ox,oy,sc,kind,flash){
+  const c=CAR[kind];if(!c)return;
+  const px=(x,y,w,h,col)=>{ctx.fillStyle=col;ctx.fillRect(ox+x*sc,oy+y*sc,w*sc,h*sc);};
+  ctx.fillStyle='rgba(0,0,0,0.45)';ctx.fillRect(ox+3*sc,oy+(c.top+c.bh+5)*sc,(c.len-4)*sc,2*sc);
+  for(const wx of c.wh){const wy=c.top+c.bh;px(wx,wy,c.wr+1,c.wr+1,'#1a0808');px(wx+1,wy+1,c.wr-1,c.wr-1,'#3a3a40');px(wx+1,wy+1,1,1,'#7a7a80');}
+  if(c.trailer){const t=c.trailer;px(t.x,t.top,t.w,t.h,c.dk);px(t.x,t.top,t.w,1,c.lt);px(t.x+2,t.top+1,t.w-4,t.h-2,'#4a2810');for(let i=2;i<t.w-2;i+=3)px(t.x+i,t.top+1,1,t.h-2,c.dk);}
+  px(2,c.top,c.len,c.bh,c.body);px(2,c.top,c.len,1,c.lt);px(2,c.top+c.bh-1,c.len,1,c.dk);
+  for(let i=0;i<c.len;i+=5)px(3+i,c.top+1,1,c.bh-2,c.dk);
+  const cy=c.top-c.cab.h;
+  px(c.cab.x,cy,c.cab.w,c.cab.h,c.cdark);
+  if(!c.armored){px(c.cab.x+1,cy+1,c.cab.w-2,c.cab.h-1,c.gl);px(c.cab.x+Math.floor(c.cab.w/2),cy+1,1,c.cab.h-1,c.cdark);}
+  else{px(c.cab.x+1,cy+Math.floor(c.cab.h/2),c.cab.w-2,1,c.gl);for(let i=1;i<c.cab.w-1;i+=2)px(c.cab.x+i,cy,1,1,c.lt);}
+  if(c.spikes)for(let i=0;i<4;i++)px(4+i*5,c.top-1,1,1,c.dk);
+  if(c.junk){px(c.cab.x+c.cab.w+1,cy+1,3,2,'#5b5b62');px(c.cab.x+c.cab.w+5,cy+2,2,2,'#7a7a80');px(c.cab.x+c.cab.w+2,cy-1,1,2,'#3a3a40');}
+  if(c.spoiler){px(c.spoiler.x,cy+1,1,2,c.dk);px(c.spoiler.x,cy,c.spoiler.w,1,c.dk);}
+  if(c.bullbar){px(c.len+1,c.top+1,1,c.bh-1,c.dk);px(c.len+1,c.top+2,2,1,c.dk);}
+  if(c.ram){for(let i=0;i<c.bh;i++)px(c.len+1+(i%2),c.top+i,1,1,c.lt);px(c.len+2,c.top+1,1,c.bh-2,c.dk);}
+  if(c.plates){for(let i=0;i<c.len;i+=4){px(2+i,c.top+2,1,1,c.lt);px(2+i,c.top+c.bh-3,1,1,c.lt);}}
+  if(flash>0){ctx.fillStyle=`rgba(255,240,200,${Math.min(.7,flash)})`;ctx.fillRect(ox,oy,(c.len+6)*sc,(c.top+c.bh+c.wr+4)*sc);}
+}
+function carPxW(kind){const c=CAR[kind];return c?(c.len+6)*3:90;}
 
 // ═══════════════════════════════════════════════
-// 資料定義
+// GARAGE DATA
 // ═══════════════════════════════════════════════
-const CHASSIS = {
-  light:  { name:'輕型突擊', spd:4.8, hp:100, capacity:6,  color:'#FF7744',
-            desc:'速度最快，容量最小\n靠速度主動決勝' },
-  medium: { name:'中型通用', spd:3.4, hp:160, capacity:10, color:'#44AAFF',
-            desc:'均衡配置\n適合各種戰術組合' },
-  heavy:  { name:'重型堡壘', spd:2.2, hp:220, capacity:16, color:'#AA8855',
-            desc:'HP最厚，容量最大\n慢速但火力全開' },
-};
 
-// weight = 武器重量（影響可帶幾件）
-const WDEFS = {
-  shotgun:     { name:'散彈',   weight:1, range:90,  cd:25,  dmg:10 },
-  subCannon:   { name:'副砲',   weight:2, range:155, cd:38,  dmg:16 },
-  missile:     { name:'飛彈',   weight:2, range:540, cd:180, dmg:48 },
-  cannon:      { name:'機砲',   weight:3, range:320, cd:80,  dmg:22 },
-  ram:         { name:'衝角',   weight:4, range:52,  cd:38,  melee:true },
-  heavyCannon: { name:'重砲',   weight:5, range:400, cd:110, dmg:38 },
-};
-
-const WCOL = {
-  cannon:'#FFD700', subCannon:'#FFA040', missile:'#FF3366',
-  heavyCannon:'#FF8C00', ram:'#cc6622', shotgun:'#CC9944'
-};
-
-// 重量驗證：medium cap=10, light cap=6, heavy cap=16
-const ENEMY1_DEF = {
-  name:'攔截車', chassisId:'medium', color:'#FF5555',
-  weapons:['cannon','heavyCannon','subCannon']   // 3+5+2 = 10
-};
-const ENEMY2_POOL = [
-  { name:'飛彈狙擊', chassisId:'light',  color:'#FF44BB',
-    weapons:['missile','cannon','shotgun'] },     // 2+3+1 = 6
-  { name:'重裝堡壘', chassisId:'heavy',  color:'#FF6644',
-    weapons:['heavyCannon','heavyCannon','cannon','subCannon','shotgun'] }, // 5+5+3+2+1 = 16
-  { name:'衝撞獵手', chassisId:'light',  color:'#FF8844',
-    weapons:['ram','subCannon'] },               // 4+2 = 6
+const CHASSIS=[
+  {id:'scout', name:'Scout', capacity:6,  s:{HP:12,MOV:4,ARM:0},desc:'輕快車架。速度快，側翼突破。'},
+  {id:'runner',name:'Runner',capacity:10, s:{HP:18,MOV:3,ARM:1},desc:'均衡戰車。強壯又靈活。'},
+  {id:'hauler',name:'Hauler',capacity:16, s:{HP:28,MOV:2,ARM:2},desc:'重裝坦克。骨板焊死，耐打。'},
+];
+const WEAPONS=[
+  {id:'flamer',    name:'Flamer',     weight:1,s:{DMG:2,RNG:2},desc:'短距，持續燃燒 3s。',    range:160,cd:0.5,dmg:7, burn:true},
+  {id:'harpoon',   name:'Harpoon',    weight:2,s:{DMG:3,RNG:4},desc:'命中後將目標拉近 14px。',range:320,cd:1.5,dmg:10,pull:true},
+  {id:'autocannon',name:'Autocannon', weight:3,s:{DMG:4,RNG:5},desc:'直線飛行，高射速主力砲。',range:400,cd:0.9,dmg:14},
+  {id:'mortar',    name:'Mortar',     weight:5,s:{DMG:5,RNG:7},desc:'弧線飛行，射程最遠。',    range:560,cd:2.6,dmg:22},
+];
+const ENGINES=[
+  {id:'diesel',name:'Diesel',s:{MOV:0,FUEL:12},desc:'穩定，便宜。'},
+  {id:'nitro', name:'Nitro', s:{MOV:2,FUEL:8}, desc:'+2 速度，油耗高。'},
+  {id:'hybrid',name:'Hybrid',s:{MOV:1,FUEL:14},desc:'靜音，省油，均衡。'},
+];
+const ARMORS=[
+  {id:'bone',   name:'Bone',   s:{ARM:1,HP:+2},desc:'上漆的骷髏骨板。'},
+  {id:'scrap',  name:'Scrap',  s:{ARM:2,HP: 0},desc:'焊上去的廢車門。'},
+  {id:'ceramic',name:'Ceramic',s:{ARM:3,HP:-2},desc:'脆弱，但能擋大砲。'},
+];
+const TABS=[
+  {id:'chassis',label:'CHASSIS',opts:CHASSIS},
+  {id:'weapon', label:'WEAPON', opts:WEAPONS,builder:true},
+  {id:'engine', label:'ENGINE', opts:ENGINES},
+  {id:'armor',  label:'ARMOR',  opts:ARMORS},
 ];
 
+let build={callsign:'BONESAW',chassis:'runner',weapons:['autocannon'],engine:'diesel',armor:'scrap'};
+let activeTab='chassis';
+
+function getBuild(){
+  return{
+    ch:CHASSIS.find(o=>o.id===build.chassis),
+    wps:build.weapons.map(id=>WEAPONS.find(o=>o.id===id)).filter(Boolean),
+    en:ENGINES.find(o=>o.id===build.engine),
+    ar:ARMORS.find(o=>o.id===build.armor),
+  };
+}
+
+function getStance(weaponIds){
+  if(weaponIds.includes('mortar'))return{targetGap:480,fleeGap:320};
+  if(weaponIds.includes('harpoon'))return{targetGap:200,fleeGap:0};
+  return{targetGap:280,fleeGap:0};
+}
+
+function renderGarage(){
+  document.getElementById('wb-sub').textContent='// '+activeTab;
+  const tabsEl=document.getElementById('tabs');
+  tabsEl.innerHTML='';
+  TABS.forEach(t=>{
+    const btn=document.createElement('button');
+    btn.className='tab-btn sk'+(t.id===activeTab?' active':'');
+    const cur=t.builder
+      ? (build.weapons.length?build.weapons.length+'× wpn':'none')
+      : (build[t.id]||'').toLowerCase();
+    btn.innerHTML=`<span>${t.label}</span><span class="tab-cur">${cur}</span>`;
+    btn.onclick=()=>{activeTab=t.id;renderGarage();};
+    tabsEl.appendChild(btn);
+  });
+  const content=document.getElementById('tab-content');
+  content.innerHTML='';
+  const sec=TABS.find(t=>t.id===activeTab);
+  if(sec.builder){renderWeaponBuilder(content);}
+  else{
+    const grid=document.createElement('div');grid.className='part-grid';
+    sec.opts.forEach(opt=>{
+      const card=document.createElement('div');
+      card.className='part-card'+(build[activeTab]===opt.id?' sel':'');
+      card.onclick=()=>{build[activeTab]=opt.id;renderGarage();};
+      const wrap=document.createElement('div');wrap.className='part-preview';
+      const pc=document.createElement('canvas');pc.style.imageRendering='pixelated';
+      if(activeTab==='chassis'){const sp=TD[opt.id];pc.width=sp[0].length*3;pc.height=sp.length*3;const c=pc.getContext('2d');c.imageSmoothingEnabled=false;drawSprite(c,sp,0,0,3);}
+      else{pc.width=48;pc.height=28;const c=pc.getContext('2d');c.imageSmoothingEnabled=false;drawCar(c,0,3,1,build.chassis,0);}
+      wrap.appendChild(pc);card.appendChild(wrap);
+      const nm=document.createElement('div');nm.className='part-name';nm.textContent=opt.name.toUpperCase();card.appendChild(nm);
+      const st=document.createElement('div');st.className='part-stats';
+      Object.entries(opt.s).forEach(([k,v])=>{const s=document.createElement('span');s.innerHTML=`${k} <em>${v>0?'+'+v:v}</em>`;st.appendChild(s);});
+      card.appendChild(st);
+      const ds=document.createElement('div');ds.className='part-desc';ds.textContent=opt.desc;card.appendChild(ds);
+      grid.appendChild(card);
+    });
+    content.appendChild(grid);
+  }
+  updatePreview();
+}
+
+function renderWeaponBuilder(content){
+  const ch=CHASSIS.find(c=>c.id===build.chassis);
+  const capacity=ch?ch.capacity:8;
+  const usedW=build.weapons.reduce((s,id)=>{const w=WEAPONS.find(x=>x.id===id);return s+(w?w.weight:0);},0);
+  const rem=capacity-usedW;
+  const pct=Math.min(1,usedW/capacity);
+  const barCol=pct>=1?'var(--blood)':pct>0.75?'#ddaa22':'var(--rust)';
+  const stance=getStance(build.weapons);
+
+  content.style.cssText='display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:14px;height:100%';
+
+  // 左欄：已配置
+  const left=document.createElement('div');
+  left.style.cssText='display:flex;flex-direction:column;gap:8px;min-height:0';
+  left.innerHTML=`
+    <div class="sk" style="font-size:10px;color:var(--dim)">已配置武器</div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--dim);margin-bottom:4px">
+        <span>容量 ${usedW} / ${capacity}</span>
+        <span style="color:${rem<=0?'var(--blood)':'var(--dim)'}">${rem<=0?'已滿':'剩餘 '+rem}</span>
+      </div>
+      <div style="height:8px;background:var(--bg0);border:1px solid var(--line)">
+        <div style="height:100%;width:${pct*100}%;background:${barCol};transition:width .15s"></div>
+      </div>
+    </div>
+    <div id="wb-loadout" style="display:flex;flex-direction:column;gap:4px;flex:1;overflow:auto"></div>
+    <div style="font-size:13px;color:var(--dim);padding-top:4px;border-top:1px dashed var(--line)" id="wb-stance">
+      ${build.weapons.length?'戰術距離 '+stance.targetGap+'px'+(stance.fleeGap?' / 逃跑 &lt;'+stance.fleeGap+'px':''):'// 選武器以顯示戰術'}
+    </div>`;
+  content.appendChild(left);
+
+  const loadoutEl=document.getElementById('wb-loadout');
+  if(build.weapons.length===0){
+    loadoutEl.innerHTML='<div style="color:var(--faint);font-style:italic;font-size:14px">// 尚未選擇武器</div>';
+  } else {
+    build.weapons.forEach((wid,idx)=>{
+      const w=WEAPONS.find(x=>x.id===wid);if(!w)return;
+      const el=document.createElement('div');
+      el.style.cssText='display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--bg0);border:1px solid var(--line);cursor:pointer';
+      el.innerHTML=`
+        <div class="part-preview" style="height:auto;width:32px;flex-shrink:0"><canvas style="image-rendering:pixelated"></canvas></div>
+        <span style="font-size:12px;color:var(--bright);font-family:Silkscreen,monospace;flex:1">${w.name.toUpperCase()}</span>
+        <span style="font-size:11px;color:var(--dim)">重${w.weight} 射${w.range} 傷${w.dmg} CD${w.cd}s</span>
+        <span style="font-size:12px;color:var(--blood);padding-left:4px">✕</span>`;
+      const pc=el.querySelector('canvas');
+      const sp=WPS[wid];if(sp){pc.width=sp[0].length*3;pc.height=sp.length*3;const c=pc.getContext('2d');c.imageSmoothingEnabled=false;drawSprite(c,sp,0,0,3);}
+      el.onclick=()=>{build.weapons.splice(idx,1);renderGarage();};
+      loadoutEl.appendChild(el);
+    });
+  }
+
+  // 右欄：武器池
+  const right=document.createElement('div');
+  right.style.cssText='display:flex;flex-direction:column;gap:4px;min-height:0';
+  right.innerHTML='<div class="sk" style="font-size:10px;color:var(--dim);margin-bottom:4px">武器池</div>';
+  WEAPONS.forEach(w=>{
+    const canAdd=rem>=w.weight;
+    const dps=(w.dmg/w.cd).toFixed(1);
+    const el=document.createElement('div');
+    el.style.cssText=`display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--bg0);border:1px solid var(--line);cursor:${canAdd?'pointer':'not-allowed'};opacity:${canAdd?1:0.38}`;
+    el.innerHTML=`
+      <span style="font-size:10px;background:var(--bg2);border:1px solid var(--line);color:var(--bright);padding:2px 5px;min-width:30px;text-align:center;font-family:Silkscreen,monospace">重${w.weight}</span>
+      <div class="part-preview" style="height:auto;width:32px;flex-shrink:0"><canvas style="image-rendering:pixelated"></canvas></div>
+      <span style="font-size:12px;color:var(--bright);font-family:Silkscreen,monospace;flex:1">${w.name.toUpperCase()}</span>
+      <span style="font-size:11px;color:var(--dim)">射${w.range} 傷${w.dmg} DPS ${dps}</span>`;
+    const pc=el.querySelector('canvas');
+    const sp=WPS[w.id];if(sp){pc.width=sp[0].length*3;pc.height=sp.length*3;const c=pc.getContext('2d');c.imageSmoothingEnabled=false;drawSprite(c,sp,0,0,3);}
+    if(canAdd)el.onclick=()=>{build.weapons.push(w.id);renderGarage();};
+    right.appendChild(el);
+  });
+  content.appendChild(right);
+}
+
+function setBar(n,val,max){const p=Math.max(0,Math.min(1,val/max));document.getElementById('b-'+n).style.width=(p*100)+'%';document.getElementById('v-'+n).textContent=val+'/'+max;}
+function updatePreview(){
+  const{ch,wp,en,ar}=getBuild();
+  const hp=ch.s.HP+ar.s.HP,arm=ch.s.ARM+ar.s.ARM,mov=ch.s.MOV+en.s.MOV,fuel=en.s.FUEL;
+  document.getElementById('lbl-ch').textContent='└── '+build.chassis;
+  document.getElementById('lbl-wp').textContent=(build.weapons.join('+')||'none')+' ──┘';
+  setBar('hull',hp,36);setBar('arm',arm,6);setBar('spd',mov,8);setBar('fuel',fuel,20);
+  const cfg=CAR[build.chassis];
+  const carW=(cfg.len+10)*3,carH=(cfg.top+cfg.bh+cfg.wr+8)*3;
+  const pc=document.getElementById('preview-c');pc.width=carW;pc.height=carH;
+  const c=pc.getContext('2d');c.imageSmoothingEnabled=false;c.clearRect(0,0,carW,carH);
+  drawCar(c,4,4,3,build.chassis,0);
+  const cs=document.getElementById('cs-input').value||'BONESAW';
+  document.getElementById('p-callsign').textContent='// '+cs;
+  document.getElementById('g-run').textContent=cs;
+}
+
+document.getElementById('cs-input').addEventListener('input',e=>{
+  build.callsign=e.target.value.toUpperCase().slice(0,14);e.target.value=build.callsign;updatePreview();
+});
+document.getElementById('roll-btn').addEventListener('click',()=>{
+  build.callsign=document.getElementById('cs-input').value.toUpperCase()||'BONESAW';
+  startRun();
+});
+
 // ═══════════════════════════════════════════════
-// 背景元素
+// RUN STATE
 // ═══════════════════════════════════════════════
-const TERRAIN = Array.from({length:22}, (_,i) => ({
-  wx: i*120+Math.random()*70, y:4+Math.random()*22, r:3+Math.random()*5,
-  len:18+Math.random()*38, type:Math.random()>0.45?'rock':'dash', spd:0.45+Math.random()*0.5
+
+let runState=null;
+
+function startRun(){
+  const{ch,wp,en,ar}=getBuild();
+  const hp=Math.max(1,ch.s.HP+ar.s.HP);
+  runState={
+    hp,maxHp:hp,scrap:3,
+    callsign:build.callsign,
+    chassis:build.chassis,weapon:build.weapon,engine:build.engine,armor:build.armor,
+    currentNodeId:null,visited:[],log:[],
+    map:generateMap(Math.floor(Math.random()*9999)+1),
+  };
+  goScreen('map');
+  renderMapScreen();
+}
+
+function goScreen(id){
+  document.querySelectorAll('.screen').forEach(el=>el.classList.remove('active'));
+  document.getElementById('game').style.display='none';
+  document.getElementById('ov').style.display='none';
+  if(id==='combat'){document.getElementById('game').style.display='flex';}
+  else{const el=document.getElementById(id);if(el)el.classList.add('active');}
+}
+
+function backToGarage(){
+  stopMapAnim();
+  goScreen('garage');
+}
+function goToGarage(){backToGarage();}
+
+// ═══════════════════════════════════════════════
+// MAP GENERATION
+// ═══════════════════════════════════════════════
+
+const NODE_TYPES={
+  fight:{label:'RAIDERS',  color:'#a4232a'},
+  elite:{label:'WARLORD',  color:'#e8762a'},
+  scrap:{label:'SCRAPYARD',color:'#e9d7a5'},
+  event:{label:'WANDERER', color:'#b6c43a'},
+  boss: {label:'OIL BARON',color:'#d83a30'},
+};
+
+function generateMap(seed){
+  let s=seed;
+  const rand=()=>{s=(s*9301+49297)%233280;return s/233280;};
+  const COLS=6;
+  const cols=[];
+  for(let c=0;c<COLS;c++){
+    let count;
+    if(c===0)count=1;
+    else if(c===COLS-1)count=1;
+    else count=2+Math.floor(rand()*2);
+    const nodes=[];
+    for(let i=0;i<count;i++){
+      let type;
+      if(c===0)type='fight';
+      else if(c===COLS-1)type='boss';
+      else{const r=rand();if(c>=3&&r<0.25)type='elite';else if(r<0.45)type='fight';else if(r<0.70)type='scrap';else if(r<0.88)type='fight';else type='event';}
+      nodes.push({id:`c${c}n${i}`,col:c,row:i,count,type});
+    }
+    cols.push(nodes);
+  }
+  const edges=[];
+  for(let c=0;c<COLS-1;c++){
+    for(const n of cols[c]){
+      const next=cols[c+1];
+      const opts=[...next.keys()];
+      opts.sort((a,b)=>Math.abs(next[a].row/Math.max(1,next.length-1)-n.row/Math.max(1,cols[c].length-1))-Math.abs(next[b].row/Math.max(1,next.length-1)-n.row/Math.max(1,cols[c].length-1)));
+      const k=1+Math.floor(rand()*2);
+      for(let j=0;j<Math.min(k,opts.length);j++)edges.push({from:n.id,to:next[opts[j]].id});
+    }
+    for(const m of cols[c+1]){
+      if(!edges.find(e=>e.to===m.id)){edges.push({from:cols[c][Math.floor(rand()*cols[c].length)].id,to:m.id});}
+    }
+  }
+  return{cols,edges,seed};
+}
+
+function nodePos(node,W,H){
+  const COLS=6;
+  const x=70+(W-140)*(node.col/(COLS-1));
+  let yFrac=node.count===1?0.5:0.18+0.64*(node.row/(node.count-1));
+  const y=60+(H-120)*yFrac;
+  return{x,y};
+}
+
+function getAllowedIds(){
+  if(!runState.currentNodeId)return runState.map.cols[0].map(n=>n.id);
+  return runState.map.edges.filter(e=>e.from===runState.currentNodeId).map(e=>e.to);
+}
+
+// ═══════════════════════════════════════════════
+// MAP RENDERING
+// ═══════════════════════════════════════════════
+
+const mapCanvas=document.getElementById('map-c');
+const mctx=mapCanvas.getContext('2d');
+let mapAnimId=null,mapT=0;
+
+function renderMapScreen(){
+  document.getElementById('map-stats').textContent=`${runState.callsign}  HULL ${runState.hp}/${runState.maxHp}  廢料 ${runState.scrap}`;
+  document.getElementById('map-sector').textContent='// 進度 '+runState.visited.length;
+  renderLog();
+  stopMapAnim();
+  const tick=()=>{mapT+=0.016;drawMapCanvas();mapAnimId=requestAnimationFrame(tick);};
+  mapAnimId=requestAnimationFrame(tick);
+}
+
+function stopMapAnim(){if(mapAnimId){cancelAnimationFrame(mapAnimId);mapAnimId=null;}}
+
+function drawMapCanvas(){
+  // 同步 canvas buffer 到實際顯示尺寸
+  const dw=mapCanvas.clientWidth,dh=mapCanvas.clientHeight;
+  if(dw>0&&dh>0&&(mapCanvas.width!==dw||mapCanvas.height!==dh)){
+    mapCanvas.width=dw; mapCanvas.height=dh;
+  }
+  const W=mapCanvas.width||720,H=mapCanvas.height||390;
+  mctx.fillStyle='#0a0604';mctx.fillRect(0,0,W,H);
+  // desert bg
+  const sky=mctx.createLinearGradient(0,0,0,H);
+  sky.addColorStop(0,'#1a0c04');sky.addColorStop(.5,'#2a1408');sky.addColorStop(1,'#1a120c');
+  mctx.fillStyle=sky;mctx.fillRect(0,0,W,H);
+  // grid fade lines
+  for(let i=1;i<6;i++){mctx.strokeStyle=`rgba(74,52,30,0.25)`;mctx.lineWidth=1;mctx.beginPath();mctx.moveTo(W*i/6,0);mctx.lineTo(W*i/6,H);mctx.stroke();}
+
+  const flat=runState.map.cols.flat();
+  const allowed=getAllowedIds();
+
+  // edges
+  for(const e of runState.map.edges){
+    const a=flat.find(n=>n.id===e.from),b=flat.find(n=>n.id===e.to);
+    if(!a||!b)continue;
+    const pa=nodePos(a,W,H),pb=nodePos(b,W,H);
+    const isPath=runState.visited.includes(e.from)&&runState.visited.includes(e.to);
+    const isReach=e.from===runState.currentNodeId&&allowed.includes(e.to);
+    const col=isPath?'#e8762a':isReach?'#c45a1c':'#2a1a0e';
+    const alpha=isPath?1:isReach?.8:.5;
+    mctx.strokeStyle=col;mctx.lineWidth=isPath||isReach?2:1;mctx.globalAlpha=alpha;
+    mctx.setLineDash([6,5]);mctx.lineDashOffset=-(mapT*30);
+    mctx.beginPath();mctx.moveTo(pa.x,pa.y);mctx.lineTo(pb.x,pb.y);mctx.stroke();
+    mctx.setLineDash([]);mctx.globalAlpha=1;
+  }
+
+  // nodes
+  for(const n of flat){
+    const p=nodePos(n,W,H);
+    const visited=runState.visited.includes(n.id);
+    const isCurrent=runState.currentNodeId===n.id;
+    const reachable=allowed.includes(n.id);
+    const meta=NODE_TYPES[n.type];
+    const sz=n.type==='boss'?52:40;
+    const alpha=visited&&!isCurrent?.35:1;
+    mctx.globalAlpha=alpha;
+    // box
+    mctx.fillStyle=isCurrent?'#251a11':reachable?'#1a120c':'#14100a';
+    mctx.strokeStyle=isCurrent?'#e8762a':reachable?meta.color:'#2a1a0e';
+    mctx.lineWidth=isCurrent?2.5:reachable?2:1;
+    if(reachable&&!isCurrent){
+      const pulse=0.5+0.5*Math.sin(mapT*3);
+      mctx.shadowColor=meta.color;mctx.shadowBlur=6+pulse*8;
+    }
+    mctx.beginPath();mctx.rect(p.x-sz/2,p.y-sz/2,sz,sz);mctx.fill();mctx.stroke();
+    mctx.shadowBlur=0;
+    // icon
+    const ico=ICONS[n.type];
+    if(ico){const isc=2,iw=ico[0].length*isc,ih=ico.length*isc;drawSprite(mctx,ico,p.x-iw/2,p.y-ih/2,isc);}
+    // current indicator
+    if(isCurrent){mctx.fillStyle='#e8762a';mctx.font='16px VT323,monospace';mctx.textAlign='center';mctx.fillText('▼',p.x,p.y-sz/2-4);}
+    // label
+    mctx.globalAlpha=1;
+    mctx.fillStyle=isCurrent?'#e8762a':reachable?'#f4e1b3':'#6b5638';
+    mctx.font='11px Silkscreen,monospace';mctx.textAlign='center';
+    mctx.fillText(meta.label,p.x,p.y+sz/2+14);
+  }
+  mctx.globalAlpha=1;
+
+  // legend
+  mctx.fillStyle='rgba(10,6,4,0.7)';mctx.fillRect(6,6,150,Object.keys(NODE_TYPES).length*16+10);
+  let ly=18;
+  for(const[id,t]of Object.entries(NODE_TYPES)){
+    mctx.fillStyle=t.color;mctx.fillRect(12,ly-8,8,8);
+    mctx.fillStyle='#b89a6a';mctx.font='10px Silkscreen,monospace';mctx.textAlign='left';
+    mctx.fillText(t.label,26,ly);
+    ly+=16;
+  }
+}
+
+// click on map canvas
+mapCanvas.addEventListener('click',e=>{
+  if(!runState)return;
+  const rect=mapCanvas.getBoundingClientRect();
+  const scx=mapCanvas.width/rect.width,scy=mapCanvas.height/rect.height;
+  const cx=(e.clientX-rect.left)*scx,cy=(e.clientY-rect.top)*scy;
+  const W=mapCanvas.width,H=mapCanvas.height;
+  const flat=runState.map.cols.flat();
+  const allowed=getAllowedIds();
+  for(const n of flat){
+    const p=nodePos(n,W,H);
+    const sz=n.type==='boss'?26:20;
+    if(allowed.includes(n.id)&&Math.abs(cx-p.x)<sz&&Math.abs(cy-p.y)<sz){
+      pickNode(n);return;
+    }
+  }
+});
+
+function pickNode(node){
+  runState.visited.push(node.id);
+  runState.currentNodeId=node.id;
+  if(node.type==='fight'||node.type==='elite'||node.type==='boss'){
+    stopMapAnim();
+    startCombat(node.type);
+  }else if(node.type==='scrap'){
+    stopMapAnim();
+    goScreen('scrap');
+    renderScrap();
+  }else if(node.type==='event'){
+    stopMapAnim();
+    goScreen('event');
+    renderEvent();
+  }
+}
+
+function renderLog(){
+  const lb=document.getElementById('log-body');
+  lb.innerHTML='';
+  if(runState.log.length===0){lb.innerHTML='<div style="font-size:15px;color:var(--faint);font-style:italic">// 尚無紀錄 //</div>';return;}
+  [...runState.log].reverse().forEach(e=>{const d=document.createElement('div');d.className='log-entry';d.textContent=e;lb.appendChild(d);});
+}
+
+// ═══════════════════════════════════════════════
+// SCRAP SCREEN
+// ═══════════════════════════════════════════════
+
+function renderScrap(){
+  document.getElementById('scrap-stats').textContent=`HULL ${runState.hp}/${runState.maxHp}  廢料 ${runState.scrap}`;
+  const repairBtn=document.getElementById('repair-btn');
+  const weldBtn=document.getElementById('weld-btn');
+  repairBtn.disabled=runState.scrap<2||runState.hp>=runState.maxHp;
+  repairBtn.textContent=runState.hp>=runState.maxHp?'船殼滿血':'敲一敲';
+  weldBtn.disabled=runState.scrap<4;
+}
+
+document.getElementById('repair-btn').addEventListener('click',()=>{
+  if(runState.scrap<2||runState.hp>=runState.maxHp)return;
+  runState.hp=Math.min(runState.maxHp,runState.hp+5);runState.scrap-=2;
+  runState.log.push(`修復船殼 +5 HP（-2 廢料）`);
+  goScreen('map');renderMapScreen();
+});
+document.getElementById('weld-btn').addEventListener('click',()=>{
+  if(runState.scrap<4)return;
+  runState.maxHp+=3;runState.hp+=3;runState.scrap-=4;
+  runState.log.push(`焊接裝甲 +3 MAX HP（-4 廢料）`);
+  goScreen('map');renderMapScreen();
+});
+function leaveScrap(){runState.log.push('沒動廢料，繼續上路。');goScreen('map');renderMapScreen();}
+
+// ═══════════════════════════════════════════════
+// EVENT SCREEN
+// ═══════════════════════════════════════════════
+
+const EVENTS=[
+  {icon:'🚶',title:'踉蹌的流浪者',body:'"水…只要水，"他嘶聲說，拖著一個包。',
+   choices:[
+    {label:'給水 (-1 廢料)',cond:s=>s.scrap>=1,fn:s=>{s.scrap-=1;return'給水給流浪者。他祝福你的車軸。';}},
+    {label:'直接開過去',fn:s=>'把流浪者留給沙塵。'},
+    {label:'搶他的包 (+2 廢料, -2 HP)',cond:s=>s.hp>2,fn:s=>{s.scrap+=2;s.hp=Math.max(1,s.hp-2);return'搶了包裹。他詛咒你。船殼損失 2。'}},
+  ]},
+  {icon:'📦',title:'半埋的緊急艙',body:'鏽鉸鏈，清晰噴字：「請勿」。',
+   choices:[
+    {label:'硬撬開 (+4 廢料, -3 HP)',cond:s=>s.hp>3,fn:s=>{s.scrap+=4;s.hp=Math.max(1,s.hp-3);return'撬開倉門。+4 廢料。陷阱傷了 3 HP。';}},
+    {label:'小心打開 (+2 廢料)',fn:s=>{s.scrap+=2;return'慢慢撬。+2 廢料。'}},
+    {label:'不管它',fn:s=>{s.hp=Math.min(s.maxHp,s.hp+1);return'轉身走開。+1 HP。'}},
+  ]},
+  {icon:'🚛',title:'護衛車隊邀請',body:'三台車並排駛過來，白色旗幟迎風。"跟我們跑到下一個據點？"',
+   choices:[
+    {label:'加入車隊 (+3 HP, -1 廢料)',cond:s=>s.scrap>=1&&s.hp<s.maxHp,fn:s=>{s.hp=Math.min(s.maxHp,s.hp+3);s.scrap-=1;return'跟著車隊。獲得補給 +3 HP。';}},
+    {label:'拒絕，單獨上路',fn:s=>'脫離車隊。廢土夠寬。'},
+  ]},
+];
+
+let currentEvent=null;
+function renderEvent(){
+  currentEvent=EVENTS[Math.floor(Math.random()*EVENTS.length)];
+  const ev=currentEvent;
+  document.getElementById('event-stats').textContent=`HULL ${runState.hp}/${runState.maxHp}  廢料 ${runState.scrap}`;
+  document.getElementById('ev-icon').textContent=ev.icon;
+  document.getElementById('ev-title').textContent=ev.title;
+  document.getElementById('ev-sub').textContent=`// 廢料 ${runState.scrap}  HP ${runState.hp}`;
+  document.getElementById('ev-body').textContent=`"${ev.body}"`;
+  const ch=document.getElementById('ev-choices');
+  ch.innerHTML='';
+  ev.choices.forEach(c=>{
+    const ok=!c.cond||c.cond(runState);
+    const btn=document.createElement('button');
+    btn.className='pxbtn sk';btn.style.width='100%';btn.style.fontSize='11px';
+    btn.textContent=c.label;btn.disabled=!ok;
+    btn.onclick=()=>{
+      const log=c.fn(runState);
+      runState.log.push(log);
+      goScreen('map');renderMapScreen();
+    };
+    ch.appendChild(btn);
+  });
+}
+
+// ═══════════════════════════════════════════════
+// COMBAT
+// ═══════════════════════════════════════════════
+
+const ENEMIES={
+  fight:[
+    {kind:'raider',  name:'Raider Buggy',hp:50, spd:3.4,arm:0,wRange:280,wCd:1.1,wDmg:11},
+    {kind:'scraprig',name:'Scrap Rig',   hp:70, spd:2.8,arm:1,wRange:250,wCd:1.5,wDmg:14},
+  ],
+  elite:[
+    {kind:'scraprig', name:'精英戰車',  hp:100,spd:3.0,arm:2,wRange:280,wCd:1.0,wDmg:17},
+    {kind:'juggernaut',name:'鐵甲軍閥', hp:80, spd:3.2,arm:2,wRange:200,wCd:0.9,wDmg:15},
+  ],
+  boss:[
+    {kind:'juggernaut',name:'石油男爵',hp:180,spd:2.5,arm:4,wRange:180,wCd:0.7,wDmg:22},
+  ],
+};
+
+const combatCanvas=document.getElementById('cc');
+const ctx=combatCanvas.getContext('2d');
+let W=900,H=430; const SCALE=0.72;
+let player,enemy,gap,phase,elapsed;
+let combatLog=[],worldX=0,bgScroll=0;
+let floaters=[],tracers=[],particles=[];
+let lastTime=0,combatAnimId=null;
+let pendingNodeType=null;
+let combatPaused=false,combatSimSpeed=1;
+
+const TERRAIN=Array.from({length:22},(_,i)=>({
+  wx:i*120+Math.random()*70,y:4+Math.random()*22,
+  r:3+Math.random()*5,len:18+Math.random()*38,
+  type:Math.random()>.45?'rock':'dash',spd:.45+Math.random()*.5
 }));
 
-// ═══════════════════════════════════════════════
-// Ship
-// ═══════════════════════════════════════════════
-class Ship {
-  constructor(isPlayer, chassisId, weaponIds, color, name) {
-    this.isPlayer = isPlayer;
-    const ch = CHASSIS[chassisId];
-    this.chassisId   = chassisId;
-    this.maxHp       = ch.hp;
-    this.hp          = ch.hp;
-    this.baseSpd     = ch.spd;
-    this.color       = color;
-    this.name        = name;
-    this.weapons     = weaponIds.map(id => ({ ...WDEFS[id], id, timer:0 }));
-    this.hitFlash    = 0;
-    this.totalDmgOut = 0;
-    this.totalDmgIn  = 0;
-    this.hitCount    = 0;
+function startCombat(nodeType){
+  pendingNodeType=nodeType;
+  const{ch,wps,en,ar}=getBuild();
+  const totalHp=runState.hp;
+  const totalArm=ch.s.ARM+ar.s.ARM;
+  const totalMov=ch.s.MOV+en.s.MOV;
+  const pSpd=1.2+totalMov*0.35;
+  const stance=getStance(build.weapons);
+
+  player={isPlayer:true,name:runState.callsign,kind:runState.chassis,color:'#e8762a',
+    hp:totalHp,maxHp:runState.maxHp,spd:1.5,maxSpd:pSpd,arm:totalArm,
+    weapons:wps.map(wp=>({...wp,timer:0})),
+    tgt:stance.targetGap,flash:0,burn:0,burnT:0,dmgOut:0,dmgIn:0,hits:0};
+
+  const pool=ENEMIES[nodeType]||ENEMIES.fight;
+  const eDef=pool[Math.floor(Math.random()*pool.length)];
+  enemy={isPlayer:false,name:eDef.name,kind:eDef.kind,color:'#d83a30',
+    hp:eDef.hp,maxHp:eDef.hp,spd:1.2,maxSpd:eDef.spd,arm:eDef.arm,
+    weapons:[{id:'gun',name:'步槍',range:eDef.wRange,cd:eDef.wCd,dmg:eDef.wDmg,timer:0}],
+    tgt:eDef.wRange*0.6,flash:0,burn:0,burnT:0,dmgOut:0,dmgIn:0,hits:0};
+
+  gap=450;phase='combat';elapsed=0;
+  combatLog=[`// ${player.name} vs ${enemy.name}`];
+  worldX=0;bgScroll=0;floaters=[];tracers=[];particles=[];
+
+  goScreen('combat');
+  // 更新 header 與 sidebar 初始資訊
+  const typeLabel={fight:'raiders',elite:'warlord',boss:'oil baron'}[nodeType]||nodeType;
+  document.getElementById('enc-type').textContent='// '+typeLabel;
+  document.getElementById('enc-cs').textContent=runState.callsign;
+  document.getElementById('cs-pname').textContent='YOU — '+runState.callsign;
+  document.getElementById('cs-ename').textContent='HOSTILE — '+enemy.name;
+  document.getElementById('cs-extra').innerHTML=`ARM <em>${totalArm}</em>  WPN <em>${build.weapons.join('+')}</em>`;
+  // 重置控制狀態
+  combatPaused=false;combatSimSpeed=1;
+  setSimSpeed(1);
+  document.getElementById('btn-pause').textContent='⏸ PAUSE';
+  document.getElementById('btn-retreat').disabled=false;
+
+  lastTime=performance.now();
+  if(combatAnimId)cancelAnimationFrame(combatAnimId);
+  const loop=(now)=>{
+    if(phase!=='combat')return;
+    const rawDt=Math.min(0.05,(now-lastTime)/1000);lastTime=now;
+    const dt=combatPaused?0:rawDt*combatSimSpeed;
+    if(dt>0)update(dt);
+    drawCombat();
+    combatAnimId=requestAnimationFrame(loop);
+  };
+  combatAnimId=requestAnimationFrame(loop);
+}
+
+function lerp(a,b,t){return a+(b-a)*Math.min(1,Math.max(0,t));}
+
+function update(dt){
+  elapsed+=dt;
+  tickV(player,dt);tickV(enemy,dt);
+  aiSpd(player,gap,dt);
+  for(const w of player.weapons){
+    w.timer=Math.max(0,w.timer-dt);
+    if(w.timer<=0&&gap<=w.range)fireWeapon(w,player,enemy);
   }
-  calcDmg(w) {
-    return w.melee ? this.baseSpd * 8 : w.dmg;
+  aiSpd(enemy,gap,dt);
+  for(const w of enemy.weapons){
+    w.timer=Math.max(0,w.timer-dt);
+    if(w.timer<=0&&gap<=w.range)fireWeapon(w,enemy,player);
   }
-  tick() {
-    if (this.hitFlash > 0) this.hitFlash--;
-    this.weapons.forEach(w => { if (w.timer > 0) w.timer--; });
+  const rel=(player.spd-enemy.spd)*60;
+  gap=Math.max(0,Math.min(800,gap-rel*dt));
+  worldX+=player.spd*60*dt;bgScroll+=player.spd*60*dt*.25;
+  if(gap<28){
+    const rv=Math.abs(player.spd-enemy.spd)*60;
+    const pd=Math.max(0,Math.floor(2+rv*.02-player.arm*.5));
+    const ed=Math.max(0,Math.floor(3+rv*.02-enemy.arm*.5));
+    if(pd>0){player.hp-=pd;player.flash=1;addLog(`‼ 衝撞 -${pd}`);spawnFloat(player,`-${pd}`,'#d83a30');}
+    if(ed>0){enemy.hp-=ed;enemy.flash=1;spawnFloat(enemy,`-${ed}`,'#e8762a');}
+    gap=Math.max(30,gap+18);spawnSparks(220,6,12,'#f4e1b3');
   }
+  tracers=tracers.filter(t=>(t.life-=dt)>0);
+  floaters=floaters.filter(f=>{f.life-=dt;f.y-=28*dt;return f.life>0;});
+  particles=particles.filter(p=>{p.life-=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=200*dt;return p.life>0;});
+  if(enemy.hp<=0&&phase==='combat'){spawnSparks(300,6,40,'#e8762a');endCombat(true);}
+  if(player.hp<=0&&phase==='combat')endCombat(false);
 }
 
-// ═══════════════════════════════════════════════
-// 遊戲狀態
-// ═══════════════════════════════════════════════
-const canvas = document.getElementById('c');
-const ctx    = canvas.getContext('2d');
-
-let player, enemy, gap, phase, frame;
-let combatLog     = [];
-let fightDuration = 0;
-let fightNum      = 0;
-let worldX        = 0;
-let floatingDmg   = [];
-let playerSX      = 220;
-let enemySX       = 700;
-let savedChassis  = null;
-let savedWeapons  = null;
-
-// ═══════════════════════════════════════════════
-// 建造器 UI
-// ═══════════════════════════════════════════════
-let builderChassis = null;
-let builderLoadout = [];
-
-(function buildChassisUI() {
-  const cont = document.getElementById('chassis-cards');
-  for (const [id, ch] of Object.entries(CHASSIS)) {
-    const el = document.createElement('div');
-    el.className = 'card';
-    el.style.borderColor = ch.color + '55';
-    el.innerHTML = `
-      <div class="cn" style="color:${ch.color}">${ch.name}</div>
-      <div class="cs">HP ${ch.hp} &nbsp;|&nbsp; 速度 ${ch.spd} &nbsp;|&nbsp; 容量 ${ch.capacity}</div>
-      <div class="cd" style="white-space:pre-line">${ch.desc}</div>`;
-    el.addEventListener('click', () => selectChassis(id));
-    cont.appendChild(el);
-  }
-})();
-
-function selectChassis(chassisId) {
-  builderChassis = chassisId;
-  builderLoadout = [];
-  document.getElementById('chassis-sel').style.display = 'none';
-  document.getElementById('weapon-sel').style.display  = 'block';
-  renderBuilder();
+function tickV(v,dt){
+  v.flash=Math.max(0,v.flash-dt*3);
+  if(v.burn>0){v.burnT+=dt;if(v.burnT>=1){v.burnT-=1;v.hp-=1;v.flash=0.5;addLog('🔥 燃燒 -1');spawnFloat(v,'-1 🔥','#e8762a');v.burn--;}}
 }
-
-function renderBuilder() {
-  const ch   = CHASSIS[builderChassis];
-  const used = builderLoadout.reduce((s, id) => s + WDEFS[id].weight, 0);
-  const rem  = ch.capacity - used;
-  document.getElementById('slot-hint').textContent = `容量 ${used} / ${ch.capacity}`;
-
-  // 容量條
-  const pct = Math.min(1, used / ch.capacity);
-  const fill = document.getElementById('cap-bar-fill');
-  fill.style.width      = (pct * 100) + '%';
-  fill.style.background = pct >= 1 ? '#cc3322' : pct > 0.75 ? '#ddaa22' : '#446633';
-  document.getElementById('cap-used').textContent = `容量 ${used} / ${ch.capacity}`;
-  document.getElementById('cap-pct').textContent  = rem > 0 ? `剩餘 ${rem}` : '已滿';
-
-  // 已選清單
-  const list = document.getElementById('loadout-list');
-  list.innerHTML = '';
-  builderLoadout.forEach((wid, idx) => {
-    const w = WDEFS[wid];
-    const dmgStr = w.melee ? 'spd×8' : w.dmg;
-    const el = document.createElement('div');
-    el.className = 'loadout-item';
-    el.innerHTML = `
-      <span class="li-name" style="color:${WCOL[wid]}">${w.name}</span>
-      <span class="li-stats">重${w.weight} 射${w.range} 傷${dmgStr} CD${w.cd}</span>
-      <span class="li-rm">✕</span>`;
-    el.addEventListener('click', () => { builderLoadout.splice(idx,1); renderBuilder(); });
-    list.appendChild(el);
-  });
-
-  // 戰術姿態預覽
-  const ws = builderLoadout.map(id => ({...WDEFS[id], id}));
-  if (builderLoadout.length) {
-    const st = getStance(ws);
-    document.getElementById('loadout-stance').textContent =
-      `目標距離 ${st.targetGap}${st.fleeGap ? ` 逃<${st.fleeGap}` : ''}`;
-  } else {
-    document.getElementById('loadout-stance').textContent = '';
-  }
-
-  // 武器池（依重量排序，輕的在上）
-  const pool = document.getElementById('weapon-pool');
-  pool.innerHTML = '';
-  for (const [wid, w] of Object.entries(WDEFS)) {
-    const canAdd = rem >= w.weight;
-    const dps    = w.melee ? `spd×8/CD` : `${(w.dmg/w.cd*60).toFixed(0)}/s`;
-    const el = document.createElement('div');
-    el.className = 'pool-item' + (canAdd ? '' : ' disabled');
-    el.innerHTML = `
-      <span class="pi-weight" style="color:${WCOL[wid]}">重${w.weight}</span>
-      <span class="pi-name"   style="color:${WCOL[wid]}">${w.name}</span>
-      <span class="pi-stats">射${w.range} 傷${w.melee?'spd×8':w.dmg} DPS ${dps}</span>`;
-    if (canAdd) el.addEventListener('click', () => { builderLoadout.push(wid); renderBuilder(); });
-    pool.appendChild(el);
-  }
-
-  document.getElementById('confirm-btn').disabled = builderLoadout.length === 0;
-}
-
-function confirmLoadout() {
-  document.getElementById('weapon-sel').style.display = 'none';
-  startGame(builderChassis, builderLoadout, ENEMY1_DEF, 1);
-}
-
-// ═══════════════════════════════════════════════
-// 戰術姿態
-// ═══════════════════════════════════════════════
-function getStance(weapons) {
-  const hasRam     = weapons.some(w => w.id === 'ram');
-  const hasMissile = weapons.some(w => w.id === 'missile');
-  if (hasRam)     return { targetGap:30,  fleeGap:0   };
-  if (hasMissile) return { targetGap:400, fleeGap:320 };
-  return                 { targetGap:200, fleeGap:0   };
-}
-
-// ═══════════════════════════════════════════════
-// 流程
-// ═══════════════════════════════════════════════
-function startGame(chassisId, weaponIds, enemyDef, fn) {
-  savedChassis = chassisId;
-  savedWeapons = weaponIds;
-  fightNum     = fn;
-
-  const ch = CHASSIS[chassisId];
-  player = new Ship(true,  chassisId, weaponIds, ch.color, ch.name);
-  enemy  = new Ship(false, enemyDef.chassisId, enemyDef.weapons, enemyDef.color, enemyDef.name);
-
-  gap           = 400;
-  phase         = 'combat';
-  combatLog     = [];
-  fightDuration = 0;
-  worldX        = 0;
-  floatingDmg   = [];
-  frame         = 0;
-
-  const panel = document.getElementById('logpanel');
-  panel.innerHTML = `<div class="lhdr">━ 第${fn}關 詳細戰鬥紀錄</div>`;
-  const fmtWpns = ship => ship.weapons.map(w =>
-    `${w.name}(重${WDEFS[w.id]?.weight??'?'},射${w.range},傷${w.melee?`spd×8`:w.dmg})`).join(' + ');
-  const pSt = getStance(player.weapons);
-  const eSt = getStance(enemy.weapons);
-  appendLog(`玩家: ${player.name}  HP=${player.maxHp}  速度=${player.baseSpd.toFixed(1)}  [${fmtWpns(player)}]`, 'plog');
-  appendLog(`敵方: ${enemy.name}  HP=${enemy.maxHp}  速度=${enemy.baseSpd.toFixed(1)}  [${fmtWpns(enemy)}]`, 'elog');
-  appendLog(`初始gap=400  玩家姿態 target=${pSt.targetGap} flee=${pSt.fleeGap}  敵方姿態 target=${eSt.targetGap} flee=${eSt.fleeGap}`, 'slog');
-
-  document.getElementById('ov-btn2').style.display = 'none';
-  document.getElementById('game').style.display    = 'flex';
-  requestAnimationFrame(loop);
-}
-
-function backToSel() {
-  phase = 'sel';
-  document.getElementById('ov').style.display          = 'none';
-  document.getElementById('game').style.display        = 'none';
-  document.getElementById('weapon-sel').style.display  = 'none';
-  document.getElementById('chassis-sel').style.display = 'block';
-}
-
-function continueToFight2() {
-  document.getElementById('ov').style.display   = 'none';
-  document.getElementById('game').style.display = 'none';
-  const e2 = ENEMY2_POOL[Math.floor(Math.random() * ENEMY2_POOL.length)];
-  startGame(savedChassis, savedWeapons, e2, 2);
-}
-
-// ═══════════════════════════════════════════════
-// 核心更新
-// ═══════════════════════════════════════════════
-function loop() {
-  if (phase !== 'combat') return;
-  frame++;
-  tick(); tick();
-  render();
-  requestAnimationFrame(loop);
-}
-
-function tick() {
-  if (phase !== 'combat') return;
-  fightDuration++;
-  player.tick();
-  enemy.tick();
-  const pSpd = playerEffSpd();
-  const eSpd = enemyEffSpd();
-  gap = Math.max(0, Math.min(720, gap + (eSpd - pSpd)));
-  worldX += pSpd;
-  if (fightDuration % 120 === 0) logStatus(pSpd, eSpd);
-  fire(player, enemy);
-  fire(enemy,  player);
-  if (enemy.hp  <= 0 && phase === 'combat') endGame(true);
-  if (player.hp <= 0 && phase === 'combat') endGame(false);
-}
-
-function playerEffSpd() {
-  const { targetGap, fleeGap } = getStance(player.weapons);
-  if (gap > targetGap + 30)          return player.baseSpd;
-  if (fleeGap > 0 && gap < fleeGap) return player.baseSpd;
-  return 0;
-}
-
-function enemyEffSpd() {
-  const { targetGap, fleeGap } = getStance(enemy.weapons);
-  if (fleeGap > 0 && gap < fleeGap) return enemy.baseSpd;       // 飛彈型：逃離近距
-  if (gap > targetGap + 30)         return enemy.baseSpd * 0.35; // 降速讓玩家追上
-  return enemy.baseSpd * 0.35;                                   // 在射程帶內緩速
-}
-
-function fire(src, tgt) {
-  for (const w of src.weapons) {
-    if (w.timer <= 0 && gap <= (w.range || 0)) {
-      const raw = src.calcDmg(w);
-      const rnd = 0.9 + Math.random() * 0.2;
-      const dmg = raw * rnd;
-      const hpBefore = Math.round(tgt.hp);
-      tgt.hp = Math.max(0, tgt.hp - dmg);
-      const hpAfter  = Math.round(tgt.hp);
-      tgt.hitFlash     = 7;
-      src.totalDmgOut += dmg;
-      tgt.totalDmgIn  += dmg;
-      src.hitCount++;
-      addLog(`${src.isPlayer?'▶':'◀'} ${w.name}  −${Math.round(dmg)}`, src.isPlayer);
-
-      const formula = w.melee
-        ? `spd${src.baseSpd.toFixed(1)}×8=${raw.toFixed(1)}`
-        : `基礎${w.dmg}`;
-      const t  = String(fightDuration).padStart(5);
-      const g  = String(Math.round(gap)).padStart(3);
-      const tl = tgt.isPlayer ? '玩HP' : '敵HP';
-      appendLog(
-        `[t=${t}] ${src.isPlayer?'▶我方':'◀敵方'} ${w.name}  gap=${g}  ${formula} ×${rnd.toFixed(3)}=-${Math.round(dmg)}  ${tl}:${hpBefore}→${hpAfter}`,
-        src.isPlayer ? 'plog' : 'elog'
-      );
-
-      floatingDmg.push({
-        x:tgt.isPlayer?playerSX:enemySX, y:SY-30,
-        text:`-${Math.round(dmg)}`, col:src.isPlayer?'#ffaa44':'#ff4455', age:0
-      });
-      w.timer = w.cd;
-    }
+function aiSpd(v,g,dt){
+  const want=v.tgt;
+  if(v.isPlayer){
+    if(g>want+30)v.spd=Math.min(v.maxSpd,v.spd+v.maxSpd*2.5*dt);
+    else if(g<want-30)v.spd=Math.max(0.4,v.spd-v.maxSpd*2.0*dt);
+    else v.spd=lerp(v.spd,v.maxSpd*.7,dt*3);
+  }else{
+    if(g>want+30)v.spd=Math.max(0.4,v.spd-v.maxSpd*1.8*dt);
+    else if(g<want-30)v.spd=Math.min(v.maxSpd,v.spd+v.maxSpd*2.5*dt);
+    else v.spd=lerp(v.spd,v.maxSpd*.7,dt*3);
   }
 }
-
-function addLog(text, isPlayer) {
-  combatLog.unshift({ text, isPlayer, age:0 });
-  if (combatLog.length > 4) combatLog.pop();
+function fireWeapon(w,src,tgt){
+  const dmg=Math.max(1,Math.floor(w.dmg*(0.85+Math.random()*.3)-tgt.arm*.5));
+  tgt.hp=Math.max(0,tgt.hp-dmg);tgt.flash=1;
+  src.dmgOut+=dmg;tgt.dmgIn+=dmg;src.hits++;w.timer=w.cd;
+  if(w.pull){gap=Math.max(0,gap-14);addLog(`‹ ${w.name} PULL -${dmg}`);}
+  else if(src.isPlayer)addLog(`› ${w.name} -${dmg}`);
+  else addLog(`◀ ${w.name} -${dmg}`);
+  if(w.burn&&!tgt.burn){tgt.burn=3;tgt.burnT=0;}
+  tracers.push({fromPlayer:src.isPlayer,life:.12,color:w.id==='flamer'?'#e8762a':src.isPlayer?'#f4e1b3':'#d83a30',thick:w.id==='mortar'?4:2});
+  spawnFloat(tgt,`-${dmg}`,src.isPlayer?'#e8762a':'#d83a30');
+  spawnSparks(src.isPlayer?280:200,4,5,src.isPlayer?'#e8762a':'#d83a30');
 }
+function addLog(t){combatLog.unshift(t);if(combatLog.length>6)combatLog.pop();}
+function spawnFloat(v,t,c){floaters.push({v,text:t,color:c,y:0,life:1.0});}
+function spawnSparks(x,y,n,c){for(let i=0;i<n;i++)particles.push({x,y,vx:(Math.random()-.5)*200,vy:-Math.random()*180-40,life:.35+Math.random()*.3,color:c||'#f4e1b3',size:1+Math.floor(Math.random()*2)});}
 
-function appendLog(text, cls) {
-  const panel = document.getElementById('logpanel');
-  const div = document.createElement('div');
-  if (cls) div.className = cls;
-  div.textContent = text;
-  panel.appendChild(div);
-  panel.scrollTop = panel.scrollHeight;
-}
-
-function logStatus(pSpd, eSpd) {
-  const { targetGap:pTgt, fleeGap:pFlee } = getStance(player.weapons);
-  const { targetGap:eTgt, fleeGap:eFlee } = getStance(enemy.weapons);
-  const pMode = gap > pTgt+30 ? '追' : (pFlee>0&&gap<pFlee ? '逃' : '維持');
-  const eMode = (eFlee>0&&gap<eFlee) ? '逃' : gap>eTgt+30 ? '待' : '維持';
-  const delta = eSpd - pSpd;
-  const t = String(fightDuration).padStart(5);
-  const g = String(Math.round(gap)).padStart(3);
-  appendLog(
-    `[t=${t}] ── gap=${g}  玩家${pSpd.toFixed(2)}/t(${pMode})  敵方${eSpd.toFixed(2)}/t(${eMode})  Δgap/t${delta>=0?'+':''}${delta.toFixed(2)}`,
-    'slog'
-  );
-}
-
-// ═══════════════════════════════════════════════
-// 結束
-// ═══════════════════════════════════════════════
-function endGame(win) {
-  if (phase !== 'combat') return;
-  phase = 'end';
-  const sec = (fightDuration / 120).toFixed(1);
-  document.getElementById('ot').textContent =
-    win ? (fightNum === 1 ? '第一關勝利' : '最終勝利！') : '擊毀';
-  document.getElementById('ot').style.color = win ? '#44ff88' : '#ff4444';
-  document.getElementById('ostats').innerHTML =
-    `${win?'擊毀敵車':'我方報廢'}　時長 ${sec} 秒<br>` +
-    `我方輸出 ${Math.round(player.totalDmgOut)}　命中 ${player.hitCount} 次<br>` +
-    `我方承受 ${Math.round(player.totalDmgIn)}　剩餘 HP ${Math.round(player.hp)} / ${player.maxHp}`;
-  document.getElementById('ov-btn2').style.display = (win && fightNum===1) ? 'block' : 'none';
-  document.getElementById('ov').style.display      = 'flex';
-}
-
-// ═══════════════════════════════════════════════
-// 渲染
-// ═══════════════════════════════════════════════
-function render() {
-  ctx.fillStyle = '#0e0900';
-  ctx.fillRect(0, 0, 900, 430);
-
-  const px = 220;
-  const ex = px + gap * SCALE;
-  playerSX = px;
-  enemySX  = ex;
-
-  drawDesertScene(px, ex);
-  drawStatusBar(px, ex);
-  drawRangeBeams(px, ex);
-  drawCarIcon(px, SY, player);
-  drawCarIcon(ex, SY, enemy);
-  drawSpeedLabels(px, ex);
-  drawFloatingDmg();
-  drawWeaponPanels();
-  drawCombatLog();
-}
-
-function drawStatusBar(px, ex) {
-  drawHpBar(8, 6, 300, 22, player, true);
-  drawHpBar(592, 6, 300, 22, enemy, false);
-
-  const pSpd = playerEffSpd(), eSpd = enemyEffSpd();
-  const diff = eSpd - pSpd;
-  const trendTxt = diff < -0.1 ? '▼ 縮短' : diff > 0.1 ? '▲ 增加' : '= 持平';
-  const trendCol = diff < -0.1 ? '#ff7744' : diff > 0.1 ? '#44aaff' : '#776655';
-
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#ddbb55'; ctx.font = 'bold 22px Courier New';
-  ctx.fillText(Math.round(gap), 450, 21);
-  ctx.fillStyle = '#664422'; ctx.font = '9px Courier New';
-  ctx.fillText('距 離', 450, 32);
-  ctx.fillStyle = trendCol; ctx.font = 'bold 10px Courier New';
-  ctx.fillText(trendTxt, 450, 44);
-  ctx.fillStyle = '#443322'; ctx.font = '9px Courier New'; ctx.textAlign = 'right';
-  ctx.fillText(`第${fightNum}關 ${(fightDuration/120).toFixed(1)}s`, 895, 44);
-}
-
-function drawHpBar(x, y, w, h, ship, left) {
-  const r = Math.max(0, ship.hp / ship.maxHp);
-  ctx.fillStyle = '#100800'; ctx.fillRect(x, y, w, h);
-  ctx.fillStyle = r > 0.5 ? '#44bb33' : r > 0.25 ? '#ddaa22' : '#dd3333';
-  ctx.fillRect(x, y, w*r, h);
-  if (ship.hitFlash > 0) {
-    ctx.fillStyle = `rgba(255,180,60,${ship.hitFlash/7*0.45})`;
-    ctx.fillRect(x, y, w, h);
+function drawCombat(){
+  // 同步 canvas buffer 尺寸到實際顯示尺寸
+  const dw=combatCanvas.clientWidth,dh=combatCanvas.clientHeight;
+  if(dw>0&&dh>0&&(combatCanvas.width!==dw||combatCanvas.height!==dh)){
+    combatCanvas.width=W=dw; combatCanvas.height=H=dh;
   }
-  ctx.strokeStyle = '#2a1200'; ctx.lineWidth = 1; ctx.strokeRect(x, y, w, h);
-  ctx.fillStyle = ship.color; ctx.font = 'bold 11px Courier New';
-  ctx.textAlign = left ? 'left' : 'right';
-  ctx.fillText(ship.name, left ? x : x+w, y-2);
-  ctx.fillStyle = '#998866'; ctx.font = '10px Courier New';
-  ctx.fillText(`${Math.round(ship.hp)} / ${ship.maxHp}`, left ? x+4 : x+w-4, y+h-4);
+  ctx.imageSmoothingEnabled=false;
+  ctx.fillStyle='#0a0604';ctx.fillRect(0,0,W,H);
+  updateCombatSidebar();
+  const sky=ctx.createLinearGradient(0,0,0,H*.72);
+  sky.addColorStop(0,'#1a0c04');sky.addColorStop(.4,'#3a1a08');sky.addColorStop(.8,'#7a3a12');sky.addColorStop(1,'#c45a1c');
+  ctx.fillStyle=sky;ctx.fillRect(0,0,W,H*.72);
+  ctx.fillStyle='rgba(245,154,58,0.6)';ctx.beginPath();ctx.arc(W*.78,H*.42,38,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='rgba(232,118,42,0.9)';ctx.beginPath();ctx.arc(W*.78,H*.42,24,0,Math.PI*2);ctx.fill();
+  drawMtns();drawMid();
+  ctx.fillStyle='#1a120c';ctx.fillRect(0,H*.72,W,H*.28);
+  for(let i=0;i<12;i++){const y=H*.72+4+i*8,off=((worldX*(.5+i*.08))%60);ctx.fillStyle=`rgba(184,154,106,${.05+(i/12)*.08})`;for(let x=-off;x<W;x+=60)ctx.fillRect(x,y,30,1);}
+  const roadY=H*.82+26;
+  ctx.strokeStyle='rgba(244,225,179,0.18)';ctx.lineWidth=2;ctx.setLineDash([24,18]);ctx.lineDashOffset=-(worldX%42);
+  ctx.beginPath();ctx.moveTo(0,roadY);ctx.lineTo(W,roadY);ctx.stroke();ctx.setLineDash([]);
+  const baseY=Math.floor(H*.82)-4,pSX=220,eSX=Math.min(W-60,pSX+gap*SCALE);
+  for(const t of tracers){const x1=t.fromPlayer?pSX+carPxW(player.kind)/2:eSX-carPxW(enemy.kind)/2,x2=t.fromPlayer?eSX:pSX;ctx.strokeStyle=t.color;ctx.lineWidth=t.thick;ctx.beginPath();ctx.moveTo(x1,baseY-30);ctx.lineTo(x2,baseY-30);ctx.stroke();}
+  drawV(pSX,baseY,player,true);drawV(eSX,baseY,enemy,false);
+  for(const p of particles){ctx.fillStyle=p.color;ctx.fillRect(p.x,baseY-30+p.y,p.size,p.size);}
+  ctx.textAlign='center';
+  for(const f of floaters){const sx=f.v.isPlayer?pSX:eSX;ctx.font='bold 14px VT323,monospace';ctx.fillStyle='#0a0604';ctx.fillText(f.text,sx+1,baseY-58+f.y+1);ctx.fillStyle=f.color;ctx.fillText(f.text,sx,baseY-58+f.y);}
+  drawHUD(pSX,eSX,baseY);
+  const vg=ctx.createRadialGradient(W/2,H/2,H*.4,W/2,H/2,H*.85);vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(0,0,0,0.5)');ctx.fillStyle=vg;ctx.fillRect(0,0,W,H);
 }
 
-function drawDesertScene(px, ex) {
-  const sky = ctx.createLinearGradient(0, 48, 0, GY);
-  sky.addColorStop(0,'#0e0500'); sky.addColorStop(0.5,'#2c1100'); sky.addColorStop(1,'#481e00');
-  ctx.fillStyle = sky; ctx.fillRect(0, 48, 900, GY-48);
-
-  ctx.fillStyle = '#1c0900';
-  const mesas = [
-    [[0,GY],[0,GY-42],[88,GY-85],[195,GY-78],[268,GY-42],[268,GY]],
-    [[340,GY],[340,GY-40],[462,GY-96],[570,GY-83],[655,GY-40],[655,GY]],
-    [[710,GY],[710,GY-36],[800,GY-70],[895,GY-64],[930,GY-36],[930,GY]]
-  ];
-  mesas.forEach(pts => {
-    ctx.beginPath();
-    pts.forEach(([mx,my],i) => i===0 ? ctx.moveTo(mx,my) : ctx.lineTo(mx,my));
-    ctx.closePath(); ctx.fill();
-  });
-
-  const grd = ctx.createLinearGradient(0,GY,0,245);
-  grd.addColorStop(0,'#3a2208'); grd.addColorStop(1,'#1e1000');
-  ctx.fillStyle = grd; ctx.fillRect(0, GY, 900, 245-GY);
-  ctx.strokeStyle = '#5a3010'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(0,GY); ctx.lineTo(900,GY); ctx.stroke();
-
-  TERRAIN.forEach(d => {
-    const sx = ((d.wx - worldX*d.spd) % 1400 + 1400) % 1400;
-    if (d.type === 'rock') {
-      ctx.fillStyle = 'rgba(80,45,15,0.5)';
-      ctx.beginPath(); ctx.ellipse(sx,GY+d.y,d.r*1.5,d.r*0.7,0,0,Math.PI*2); ctx.fill();
-    } else {
-      ctx.strokeStyle = 'rgba(65,38,12,0.35)'; ctx.lineWidth = 1;
-      ctx.setLineDash([d.len,22]);
-      ctx.beginPath(); ctx.moveTo(sx,GY+d.y); ctx.lineTo(sx+d.len*2,GY+d.y); ctx.stroke();
-      ctx.setLineDash([]);
-    }
-  });
-
-  drawDust(px-32, SY+14);
-  drawDust(ex-32, SY+14);
+function drawV(sx,baseY,v,isPlayer){
+  const cfg=CAR[v.kind];if(!cfg)return;
+  const hw=carPxW(v.kind)/2,jit=(Math.sin(elapsed*18+(isPlayer?0:1.5))*1)|0;
+  drawCar(ctx,Math.floor(sx-hw),Math.floor(baseY-40+jit),3,v.kind,v.flash);
+  const bw=cfg.len*1.8,bx=Math.floor(sx-bw/2),by=Math.floor(baseY-56);
+  ctx.fillStyle='#0a0604';ctx.fillRect(bx,by,bw,4);
+  ctx.fillStyle=isPlayer?'#e8762a':'#a4232a';ctx.fillRect(bx,by,bw*Math.max(0,v.hp/v.maxHp),4);
+  ctx.strokeStyle='#0a0604';ctx.lineWidth=1;ctx.strokeRect(bx-.5,by-.5,bw+1,5);
+  ctx.fillStyle=v.color;ctx.font='11px Silkscreen,monospace';ctx.textAlign='center';ctx.fillText(v.name,sx,by-4);
+  if(v.burn>0){const f=(elapsed*12)%1;ctx.fillStyle=`rgba(232,118,42,${.7-f*.4})`;ctx.fillRect(sx-hw+4,baseY-50-f*6,4,4);}
+  if(isPlayer&&v.spd>2.5){const iv=(v.spd-2.5)/4;ctx.strokeStyle=`rgba(232,118,42,${iv*.45})`;ctx.lineWidth=1;for(let i=0;i<6;i++){const y=baseY-28+(i-3)*5,len=30+iv*50;ctx.beginPath();ctx.moveTo(sx-hw-4,y);ctx.lineTo(sx-hw-4-len,y);ctx.stroke();}}
 }
 
-function drawDust(x, y) {
-  for (let i = 0; i < 5; i++) {
-    const dx = x - i*12 + (Math.random()-0.5)*4;
-    const dy = y + (Math.random()-0.5)*5;
-    ctx.fillStyle = `rgba(150,90,35,${0.20-i*0.035})`;
-    ctx.beginPath(); ctx.arc(dx, dy, 4+i*2.5, 0, Math.PI*2); ctx.fill();
-  }
-}
-
-function drawCarIcon(x, y, ship) {
-  ctx.save();
-  ctx.translate(x, y);
-  if (ship.hitFlash > 0) ctx.filter = 'brightness(2.5)';
-  const col = ship.color;
-  const dk  = darker(col, 0.42);
-
-  [[-25,12],[19,12]].forEach(([wx,wy]) => {
-    ctx.fillStyle = '#111';
-    ctx.beginPath(); ctx.arc(wx,wy,9,0,Math.PI*2); ctx.fill();
-    ctx.strokeStyle = '#3a3a3a'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(wx,wy,9,0,Math.PI*2); ctx.stroke();
-    ctx.fillStyle = '#2a2a2a';
-    ctx.beginPath(); ctx.arc(wx,wy,4,0,Math.PI*2); ctx.fill();
-  });
-
-  ctx.fillStyle=col; ctx.strokeStyle=dk; ctx.lineWidth=2;
-  ctx.fillRect(-36,-8,72,19); ctx.strokeRect(-36,-8,72,19);
-  ctx.fillStyle=darker(col,0.62); ctx.strokeStyle=dk; ctx.lineWidth=1.5;
-  ctx.fillRect(-22,-20,38,14); ctx.strokeRect(-22,-20,38,14);
-  ctx.fillStyle='#252525'; ctx.strokeStyle='#444'; ctx.lineWidth=1;
-  ctx.fillRect(29,-5,7,16); ctx.strokeRect(29,-5,7,16);
-
-  if (ship.weapons.some(w => w.id==='ram')) {
-    ctx.fillStyle='#bbb'; ctx.strokeStyle='#888'; ctx.lineWidth=1.5;
-    ctx.beginPath();
-    ctx.moveTo(36,-1); ctx.lineTo(50,-5); ctx.lineTo(57,2); ctx.lineTo(50,7); ctx.lineTo(36,2);
-    ctx.closePath(); ctx.fill(); ctx.stroke();
-  }
-  ctx.filter = 'none';
-  ctx.restore();
-}
-
-function drawSpeedLabels(px, ex) {
-  const pSpd = playerEffSpd(), eSpd = enemyEffSpd();
-  ctx.font = '10px Courier New'; ctx.textAlign = 'center';
-  ctx.fillStyle = rgba(player.color, 0.75);
-  ctx.fillText(`→ ${pSpd.toFixed(1)}/t`, px, SY+32);
-  ctx.fillStyle = rgba(enemy.color, 0.75);
-  ctx.fillText(`→ ${eSpd.toFixed(1)}/t`, ex, SY+32);
-}
-
-function drawRangeBeams(px, ex) {
-  const oys = [-10, 6, -20, 18];
-  player.weapons.forEach((w, i) => {
-    if (!w.range) return;
-    const inR  = gap <= w.range;
-    const col  = WCOL[w.id] || '#aaa';
-    const bx   = px + 40;
-    const endX = Math.min(bx + w.range*SCALE, ex-38);
-    const oy   = SY + oys[i % 4];
-    ctx.strokeStyle = inR ? rgba(col,0.65) : rgba(col,0.14);
-    ctx.lineWidth   = inR ? 2 : 1;
-    ctx.setLineDash(inR ? [] : [4,5]);
-    ctx.beginPath(); ctx.moveTo(bx,oy); ctx.lineTo(endX,oy); ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillStyle = inR ? rgba(col,0.9) : rgba(col,0.28);
-    ctx.font = '9px Courier New'; ctx.textAlign = 'center';
-    ctx.fillText(w.name, bx+(endX-bx)/2, oy-4);
-  });
-  enemy.weapons.forEach((w, i) => {
-    if (!w.range) return;
-    const inR  = gap <= w.range;
-    const bx   = ex - 40;
-    const endX = Math.max(bx - w.range*SCALE, px+38);
-    const oy   = SY + oys[i % 4];
-    ctx.strokeStyle = inR ? 'rgba(255,80,80,0.60)' : 'rgba(255,80,80,0.12)';
-    ctx.lineWidth   = inR ? 2 : 1;
-    ctx.setLineDash(inR ? [] : [4,5]);
-    ctx.beginPath(); ctx.moveTo(bx,oy); ctx.lineTo(endX,oy); ctx.stroke();
-    ctx.setLineDash([]);
+function drawHUD(pSX,eSX,baseY){
+  // 只顯示畫布中央的距離指示器
+  const cx=W/2;
+  ctx.fillStyle='rgba(10,6,4,0.75)';ctx.fillRect(cx-44,3,88,26);
+  ctx.strokeStyle='#4a341e';ctx.lineWidth=1;ctx.strokeRect(cx-44,3,88,26);
+  ctx.fillStyle='#ddbb55';ctx.font='bold 20px VT323,monospace';ctx.textAlign='center';ctx.fillText(Math.round(gap)+'px',cx,20);
+  ctx.fillStyle='#664422';ctx.font='9px Silkscreen,monospace';ctx.fillText('GAP',cx,30);
+  // 武器狀態（左下小字，每把武器一行）
+  ctx.font='10px Silkscreen,monospace';ctx.textAlign='left';
+  player.weapons.forEach((w,i)=>{
+    const inR=gap<=w.range,rdy=w.timer<=0;
+    ctx.fillStyle=inR?(rdy?'rgba(68,238,136,0.9)':'rgba(255,170,51,0.9)'):'rgba(68,51,34,0.9)';
+    ctx.fillText(inR?(rdy?w.name+' READY':w.name+' '+w.timer.toFixed(1)+'s'):w.name+' OOR',8,H-8-i*13);
   });
 }
 
-function drawFloatingDmg() {
-  floatingDmg = floatingDmg.filter(f => f.age < 52);
-  floatingDmg.forEach(f => {
-    f.age++;
-    ctx.globalAlpha = 1 - f.age/52;
-    ctx.fillStyle   = f.col;
-    ctx.font = `bold ${15-Math.floor(f.age/18)}px Courier New`;
-    ctx.textAlign = 'center';
-    ctx.fillText(f.text, f.x, f.y - f.age*0.65);
-    ctx.globalAlpha = 1;
+function updateCombatSidebar(){
+  if(!player||!enemy)return;
+  const pHpPct=Math.max(0,player.hp/player.maxHp);
+  const pHpCol=pHpPct>.5?'#44bb33':pHpPct>.25?'#ddaa22':'#dd3333';
+  const pSpdPct=Math.min(1,player.spd/player.maxSpd);
+  const eHpPct=Math.max(0,enemy.hp/enemy.maxHp);
+  const eHpCol=eHpPct>.5?'#44bb33':eHpPct>.25?'#ddaa22':'#dd3333';
+  const $=id=>document.getElementById(id);
+  const hpFill=$('cs-hp-fill');hpFill.style.width=`calc(${pHpPct*100}% - 2px)`;hpFill.style.background=pHpCol;
+  $('cs-hp-txt').textContent=`${Math.round(player.hp)}/${player.maxHp}`;
+  $('cs-sp-fill').style.width=`calc(${pSpdPct*100}% - 2px)`;
+  $('cs-sp-txt').textContent=`${Math.round(player.spd*60)} km/h`;
+  const eHpFill=$('cs-ehp-fill');eHpFill.style.width=`calc(${eHpPct*100}% - 2px)`;eHpFill.style.background=eHpCol;
+  $('cs-ehp-txt').textContent=`${Math.round(enemy.hp)}/${enemy.maxHp}`;
+  $('cs-edist').textContent=`距離 ${Math.round(gap)} px`;
+  // 戰鬥 log
+  const logEl=$('cs-log');
+  const html=combatLog.map((l,i)=>`<div style="color:${i===0?'var(--ink)':'var(--dim)'}">${l}</div>`).join('');
+  if(logEl.innerHTML!==html)logEl.innerHTML=html;
+}
+
+function togglePause(){
+  combatPaused=!combatPaused;
+  document.getElementById('btn-pause').textContent=combatPaused?'▶ RESUME':'⏸ PAUSE';
+}
+
+function setSimSpeed(n){
+  combatSimSpeed=n;
+  const info=document.getElementById('enc-sim');
+  if(info)info.textContent=`// ${n}×`;
+  [1,2,4].forEach(x=>{
+    const b=document.getElementById('btn-'+x+'x');
+    if(b)b.classList.toggle('active',x===n);
   });
 }
 
-// ═══════════════════════════════════════════════
-// 武器面板（2行×3列，最多6武器/側）
-// ═══════════════════════════════════════════════
-const CW = 130, CH = 50, CGAP = 4;
-
-function getCardPos(idx, isPlayer) {
-  const col = idx % 3, row = Math.floor(idx / 3);
-  const y = PANEL_Y + row * (CH + CGAP);
-  const x = isPlayer
-    ? 8   + col * (CW + CGAP)
-    : 892 - CW - col * (CW + CGAP);
-  return { x, y };
+function retreatCombat(){
+  if(phase!=='combat')return;
+  if(combatAnimId){cancelAnimationFrame(combatAnimId);combatAnimId=null;}
+  phase='end';
+  runState.hp=Math.max(1,Math.floor(player.hp)-3);
+  runState.log.push(`撤退！剩餘 HULL ${runState.hp}。`);
+  document.getElementById('btn-retreat').disabled=true;
+  setTimeout(()=>{goScreen('map');renderMapScreen();},600);
 }
 
-function drawWeaponPanels() {
-  ctx.fillStyle = '#554433'; ctx.font = '10px Courier New';
-  ctx.textAlign = 'left';  ctx.fillText('我方武器', 8,   PANEL_Y-5);
-  ctx.textAlign = 'right'; ctx.fillText('敵方武器', 892, PANEL_Y-5);
-  player.weapons.forEach((w,i) => { const {x,y}=getCardPos(i,true);  drawWeaponCard(x,y,w,player); });
-  enemy.weapons.forEach( (w,i) => { const {x,y}=getCardPos(i,false); drawWeaponCard(x,y,w,enemy);  });
+function drawMtns(){
+  ctx.fillStyle='#2a1408';const by=H*.62,off=bgScroll*.3%200;
+  ctx.beginPath();ctx.moveTo(-off-100,by);
+  for(let x=-off-100,i=0;x<W+200;x+=50,i++){const h=30+((i*37)%50);ctx.lineTo(x+25,by-h);ctx.lineTo(x+50,by);}
+  ctx.lineTo(W+200,H*.72);ctx.lineTo(-100,H*.72);ctx.closePath();ctx.fill();
+}
+function drawMid(){
+  ctx.fillStyle='#1a0c04';const by=H*.72,off=bgScroll*.7%400;
+  [{x:80,w:30,h:14},{x:240,w:18,h:8},{x:380,w:40,h:20},{x:520,w:22,h:10},{x:700,w:34,h:16},{x:860,w:16,h:6}].forEach(wr=>{
+    const x=((wr.x-off)%(W+400)+W+400)%(W+400)-100;ctx.fillRect(x,by-wr.h,wr.w,wr.h);ctx.fillRect(x+Math.floor(wr.w/2),by-wr.h-4,1,4);
+  });
 }
 
-function drawWeaponCard(x, y, w, ship) {
-  const inR = gap <= (w.range || 0);
-  const rdy = w.timer <= 0;
-  const col = WCOL[w.id] || '#aa8844';
-  const dmg = ship.calcDmg(w);
-
-  ctx.fillStyle   = inR ? '#1a1000' : '#110a00';
-  ctx.strokeStyle = inR ? rgba(col,0.5) : '#281500';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath(); rRect(x, y, CW, CH, 4); ctx.fill(); ctx.stroke();
-
-  ctx.fillStyle = inR ? col : '#665544';
-  ctx.font = 'bold 11px Courier New'; ctx.textAlign = 'left';
-  ctx.fillText(w.name, x+6, y+13);
-
-  const sLabel = !inR ? '射程外' : (rdy ? '就緒' : 'CD');
-  const sCol   = !inR ? '#443322' : (rdy ? '#44ee88' : '#ffaa33');
-  ctx.fillStyle = sCol; ctx.font = 'bold 9px Courier New'; ctx.textAlign = 'right';
-  ctx.fillText(sLabel, x+CW-5, y+13);
-
-  ctx.fillStyle = '#eebb77'; ctx.font = '10px Courier New'; ctx.textAlign = 'left';
-  ctx.fillText(`傷 ${dmg.toFixed(0)}  射 ${w.range}`, x+6, y+27);
-
-  const cdW = CW - 12;
-  ctx.fillStyle = '#180e00'; ctx.fillRect(x+6, y+33, cdW, 6);
-  if (inR) {
-    const cdR = rdy ? 1 : 1 - w.timer/w.cd;
-    ctx.fillStyle = rdy ? '#44ee88' : rgba(col,0.8);
-    ctx.fillRect(x+6, y+33, cdW*cdR, 6);
+function endCombat(win){
+  if(phase!=='combat')return;
+  phase='end';
+  if(combatAnimId){cancelAnimationFrame(combatAnimId);combatAnimId=null;}
+  const rb=document.getElementById('btn-retreat');if(rb)rb.disabled=true;
+  if(win){
+    const reward=pendingNodeType==='boss'?10:pendingNodeType==='elite'?5:3;
+    runState.hp=Math.max(1,Math.floor(player.hp));
+    runState.scrap+=reward;
+    runState.log.push(`擊敗 ${enemy.name}。+${reward} 廢料。`);
+    if(pendingNodeType==='boss'){showEnd(true);}
+    else{setTimeout(()=>{goScreen('map');renderMapScreen();},1200);}
+    // flash victory briefly
+    document.getElementById('ot').textContent=pendingNodeType==='boss'?'石油男爵倒下了':'敵車摧毀';
+    document.getElementById('ot').style.color='#e8762a';
+    document.getElementById('ostats').innerHTML=`+${reward} 廢料　剩餘 HP ${Math.round(player.hp)}/${runState.maxHp}`;
+    if(pendingNodeType!=='boss'){document.getElementById('ov').style.display='flex';setTimeout(()=>{document.getElementById('ov').style.display='none';},1100);}
+  }else{
+    runState.hp=0;runState.log.push(`在 ${enemy.name} 交戰中報廢。`);
+    showEnd(false);
   }
-  ctx.fillStyle = '#776655'; ctx.font = '9px Courier New'; ctx.textAlign = 'right';
-  if (inR && !rdy) ctx.fillText(`${(w.timer/60).toFixed(1)}s`, x+CW-5, y+47);
 }
 
-function drawCombatLog() {
-  ctx.fillStyle = '#443322'; ctx.font = '10px Courier New';
-  ctx.textAlign = 'left'; ctx.fillText('━ 紀錄', 10, LOG_Y-4);
-  combatLog.forEach((e, i) => {
-    e.age++;
-    ctx.globalAlpha = Math.max(0.12, 1-e.age/200);
-    ctx.fillStyle   = e.isPlayer ? '#88cc66' : '#cc5544';
-    ctx.font = '11px Courier New'; ctx.textAlign = 'left';
-    ctx.fillText(e.text, 10, LOG_Y+12+i*14);
-    ctx.globalAlpha = 1;
-  });
+function showEnd(win){
+  document.getElementById('ot').textContent=win?'石油男爵倒下了':'埋進塵土裡';
+  document.getElementById('ot').style.color=win?'#e8762a':'#a4232a';
+  document.getElementById('ostats').innerHTML=
+    `${win?'你征服了廢土':'你的引擎在正午卡死了'}<br>`+
+    `交戰 ${runState.visited.length} 次　廢料 ${runState.scrap}<br>`+
+    `輸出 ${Math.round(player.dmgOut)} 傷害　${player.hits} 次命中`;
+  document.getElementById('ov').style.display='flex';
+}
+
+function backToGarage(){
+  phase='idle';
+  if(combatAnimId){cancelAnimationFrame(combatAnimId);combatAnimId=null;}
+  stopMapAnim();
+  document.getElementById('ov').style.display='none';
+  document.querySelectorAll('.screen').forEach(el=>el.classList.remove('active'));
+  document.getElementById('game').style.display='none';
+  document.getElementById('garage').classList.add('active');
 }
 
 // ═══════════════════════════════════════════════
-// 工具
+// INIT
 // ═══════════════════════════════════════════════
-function rgba(hex, a) {
-  const n = parseInt(hex.replace('#',''),16);
-  return `rgba(${(n>>16)&0xff},${(n>>8)&0xff},${n&0xff},${a})`;
-}
-function darker(hex, f) {
-  const n = parseInt(hex.replace('#',''),16);
-  return `rgb(${Math.round(((n>>16)&0xff)*f)},${Math.round(((n>>8)&0xff)*f)},${Math.round((n&0xff)*f)})`;
-}
-function rRect(x, y, w, h, r) {
-  ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y);
-  ctx.quadraticCurveTo(x+w,y,x+w,y+r); ctx.lineTo(x+w,y+h-r);
-  ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h); ctx.lineTo(x+r,y+h);
-  ctx.quadraticCurveTo(x,y+h,x,y+h-r); ctx.lineTo(x,y+r);
-  ctx.quadraticCurveTo(x,y,x+r,y); ctx.closePath();
-}
+renderGarage();
+goScreen('garage');
 </script>
 </body>
 </html>

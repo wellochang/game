@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Wasteland Runners</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-0: #0e0a07;
+    --bg-1: #1a120c;
+    --bg-2: #251a11;
+    --bg-3: #382617;
+    --ink:  #f4e1b3;
+    --ink-dim: #b89a6a;
+    --ink-faint: #6b5638;
+    --rust: #c45a1c;
+    --rust-bright: #e8762a;
+    --blood: #a4232a;
+    --bone: #e9d7a5;
+    --steel: #5b5b62;
+    --acid: #b6c43a;
+    --line: #4a341e;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg-0);
+    color: var(--ink);
+    font-family: "VT323", "JetBrains Mono", ui-monospace, monospace;
+    font-size: 20px;
+    line-height: 1.1;
+    overflow: hidden;
+    height: 100%;
+    -webkit-font-smoothing: none;
+    image-rendering: pixelated;
+  }
+  body {
+    background:
+      radial-gradient(ellipse at 50% 12%, #3a2010 0%, #1a0f08 55%, #0a0604 100%);
+  }
+  #root { height: 100vh; width: 100vw; }
+  canvas { image-rendering: pixelated; image-rendering: crisp-edges; display: block; }
+  button { font-family: inherit; color: inherit; }
+  .silkscreen { font-family: "Silkscreen", "VT323", monospace; letter-spacing: 0.04em; }
+  .scanlines::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: repeating-linear-gradient(to bottom, rgba(0,0,0,0.0) 0 2px, rgba(0,0,0,0.18) 2px 3px);
+    mix-blend-mode: multiply;
+  }
+  .noselect { user-select: none; -webkit-user-select: none; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="src/tweaks-panel.jsx"></script>
+<script type="text/babel" src="src/sprites.jsx"></script>
+<script type="text/babel" src="src/ui.jsx"></script>
+<script type="text/babel" src="src/garage.jsx"></script>
+<script type="text/babel" src="src/map.jsx"></script>
+<script type="text/babel" src="src/combat.jsx"></script>
+<script type="text/babel" src="src/game.jsx"></script>
+</body>
+</html>
