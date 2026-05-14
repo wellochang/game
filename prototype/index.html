@@ -65,6 +65,9 @@ button{font-family:inherit;color:inherit;cursor:pointer}
 .part-stats{display:flex;flex-wrap:wrap;justify-content:center;gap:2px 8px;font-size:13px;color:var(--dim)}
 .part-stats em{font-style:normal;color:var(--ink)}
 .part-desc{font-size:12px;color:var(--faint);text-align:center;line-height:1.3;margin-top:2px}
+#wb-loadout-strip{padding:10px 14px 12px;border-top:2px solid var(--line);background:var(--bg2);flex-shrink:0;display:none}
+#wb-loadout-strip.visible{display:block}
+.wl-chip{display:flex;align-items:center;gap:5px;padding:4px 8px;background:var(--bg0);border:1px solid var(--line)}
 .wb-footer{padding:12px 14px;border-top:2px solid var(--line);background:var(--bg2);display:flex;align-items:center;gap:12px;flex-shrink:0}
 .cs-lbl{font-size:10px;color:var(--dim);letter-spacing:.08em;font-family:'Silkscreen',monospace}
 #cs-input{background:var(--bg0);border:1px solid var(--line);color:var(--ink);padding:6px 10px;font-family:inherit;font-size:18px;letter-spacing:.06em;width:170px}
@@ -137,6 +140,7 @@ button{font-family:inherit;color:inherit;cursor:pointer}
       <div class="panel-hdr"><span class="lbl sk">WORKBENCH</span><span class="info" id="wb-sub">// chassis</span></div>
       <div class="tabs" id="tabs"></div>
       <div class="tab-content" id="tab-content"></div>
+      <div id="wb-loadout-strip"></div>
       <div class="wb-footer">
         <span class="cs-lbl">CALLSIGN</span>
         <input id="cs-input" maxlength="14" value="BONESAW">
@@ -439,6 +443,7 @@ function renderGarage(){
     });
     content.appendChild(grid);
   }
+  renderLoadoutStrip();
   updatePreview();
 }
 
@@ -513,6 +518,62 @@ function renderWeaponBuilder(content){
     right.appendChild(el);
   });
   content.appendChild(right);
+}
+
+function renderLoadoutStrip(){
+  const strip=document.getElementById('wb-loadout-strip');
+  strip.classList.add('visible');
+  strip.innerHTML='';
+
+  const ch=CHASSIS.find(c=>c.id===build.chassis);
+  const en=ENGINES.find(e=>e.id===build.engine);
+  const ar=ARMORS.find(a=>a.id===build.armor);
+  const capacity=ch?ch.capacity:8;
+  const usedW=build.weapons.reduce((s,id)=>{const w=WEAPONS.find(x=>x.id===id);return s+(w?w.weight:0);},0);
+  const pct=Math.min(1,usedW/capacity);
+  const barCol=pct>=1?'var(--blood)':pct>0.75?'#ddaa22':'var(--rust)';
+
+  // ── Part summary row ────────────────────────────────────────────────
+  const parts=document.createElement('div');
+  parts.style.cssText='display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap';
+  [
+    {label:'CHASSIS', name:ch?ch.name:'—', stats:ch?`HP${ch.s.HP} MOV${ch.s.MOV} CAP${ch.capacity}`:''},
+    {label:'ENGINE',  name:en?en.name:'—', stats:en?`MOV+${en.s.MOV} FUEL${en.s.FUEL}`:''},
+    {label:'ARMOR',   name:ar?ar.name:'—', stats:ar?`ARM+${ar.s.ARM} HP${ar.s.HP>0?'+':''}${ar.s.HP}`:''},
+  ].forEach(({label,name,stats})=>{
+    const p=document.createElement('div');
+    p.style.cssText='display:flex;flex-direction:column;gap:1px;padding:4px 8px;background:var(--bg0);border:1px solid var(--line);flex:1;min-width:80px';
+    p.innerHTML=`<span class="sk" style="font-size:8px;color:var(--dim)">${label}</span><span style="font-size:12px;color:var(--bright);font-family:Silkscreen,monospace">${name.toUpperCase()}</span><span style="font-size:10px;color:var(--faint)">${stats}</span>`;
+    parts.appendChild(p);
+  });
+  strip.appendChild(parts);
+
+  // ── Weapon loadout ───────────────────────────────────────────────────
+  const wHdr=document.createElement('div');
+  wHdr.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:6px';
+  wHdr.innerHTML=`<span class="sk" style="font-size:9px;color:var(--dim);white-space:nowrap">WEAPONS</span><div style="flex:1;height:4px;background:var(--bg0);border:1px solid var(--line)"><div style="height:100%;width:${pct*100}%;background:${barCol};transition:width .15s"></div></div><span style="font-size:11px;color:${usedW>=capacity?'var(--blood)':'var(--dim)'}">重 ${usedW}/${capacity}</span>`;
+  strip.appendChild(wHdr);
+
+  if(build.weapons.length===0){
+    const em=document.createElement('div');em.style.cssText='font-size:13px;color:var(--faint);font-style:italic';em.textContent='// 未配置武器';strip.appendChild(em);return;
+  }
+
+  const chips=document.createElement('div');chips.style.cssText='display:flex;flex-wrap:wrap;gap:6px';
+  build.weapons.forEach(wid=>{
+    const w=WEAPONS.find(x=>x.id===wid);if(!w)return;
+    const chip=document.createElement('div');chip.className='wl-chip';
+    const sp=WPS[wid];if(sp){const pc=document.createElement('canvas');pc.style.imageRendering='pixelated';pc.width=sp[0].length*2;pc.height=sp.length*2;const ctx=pc.getContext('2d');ctx.imageSmoothingEnabled=false;drawSprite(ctx,sp,0,0,2);chip.appendChild(pc);}
+    const efx=(w.burn?'[燃]':'')+(w.pull?'[拉]':'');
+    const info=document.createElement('div');info.style.cssText='display:flex;flex-direction:column;gap:1px';
+    info.innerHTML=`<span style="font-size:10px;color:var(--bright);font-family:Silkscreen,monospace">${w.name.toUpperCase()}${efx?'<span style="color:var(--acid);margin-left:3px">'+efx+'</span>':''}</span><span style="font-size:11px;color:var(--dim)">射${w.range} 傷${w.dmg} CD${w.cd}s</span>`;
+    chip.appendChild(info);chips.appendChild(chip);
+  });
+  strip.appendChild(chips);
+
+  const stance=getStance(build.weapons);
+  const st=document.createElement('div');st.style.cssText='font-size:12px;color:var(--dim);margin-top:6px;padding-top:5px;border-top:1px dashed var(--line)';
+  st.textContent='戰術距離 '+stance.targetGap+'px'+(stance.fleeGap?' ／ 逃跑 <'+stance.fleeGap+'px':'');
+  strip.appendChild(st);
 }
 
 function setBar(n,val,max){const p=Math.max(0,Math.min(1,val/max));document.getElementById('b-'+n).style.width=(p*100)+'%';document.getElementById('v-'+n).textContent=val+'/'+max;}
