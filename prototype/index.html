@@ -469,7 +469,7 @@ function renderWeaponBuilder(content){
     </div>
     <div id="wb-loadout" style="display:flex;flex-direction:column;gap:4px;flex:1;overflow:auto"></div>
     <div style="font-size:13px;color:var(--dim);padding-top:4px;border-top:1px dashed var(--line)" id="wb-stance">
-      ${build.weapons.length?`戰術距離 ${stance.targetGap}px${stance.fleeGap?` / 逃跑 &lt;${stance.fleeGap}px`:''}':'// 選武器以顯示戰術'}
+      ${build.weapons.length?'戰術距離 '+stance.targetGap+'px'+(stance.fleeGap?' / 逃跑 &lt;'+stance.fleeGap+'px':''):'// 選武器以顯示戰術'}
     </div>`;
   content.appendChild(left);
 
