@@ -626,6 +626,22 @@ function nodePos(node,W,H){
   return{x,y};
 }
 
+function nodeEnemyDef(node){
+  const pool=ENEMIES[node.type];
+  if(!pool||!pool.length)return null;
+  const h=(runState.map.seed+node.col*13+node.row*7)%pool.length;
+  return pool[h];
+}
+
+function nodeIntel(node){
+  const e=nodeEnemyDef(node);
+  if(!e)return null;
+  if(node.type==='fight') return`射程 ${e.wRange}`;
+  if(node.type==='elite') return e.kind.toUpperCase();
+  if(node.type==='boss')  return`${e.kind.toUpperCase()} / 射程 ${e.wRange}`;
+  return null;
+}
+
 function getAllowedIds(){
   if(!runState.currentNodeId)return runState.map.cols[0].map(n=>n.id);
   return runState.map.edges.filter(e=>e.from===runState.currentNodeId).map(e=>e.to);
@@ -713,6 +729,11 @@ function drawMapCanvas(){
     mctx.fillStyle=isCurrent?'#e8762a':reachable?'#f4e1b3':'#6b5638';
     mctx.font='11px Silkscreen,monospace';mctx.textAlign='center';
     mctx.fillText(meta.label,p.x,p.y+sz/2+14);
+    // intel（僅可到達或當前節點才顯示）
+    if(reachable||isCurrent){
+      const intel=nodeIntel(n);
+      if(intel){mctx.fillStyle='#6b5638';mctx.font='9px Silkscreen,monospace';mctx.fillText(intel,p.x,p.y+sz/2+26);}
+    }
   }
   mctx.globalAlpha=1;
 
@@ -750,7 +771,7 @@ function pickNode(node){
   runState.currentNodeId=node.id;
   if(node.type==='fight'||node.type==='elite'||node.type==='boss'){
     stopMapAnim();
-    startCombat(node.type);
+    startCombat(node.type,nodeEnemyDef(node));
   }else if(node.type==='scrap'){
     stopMapAnim();
     goScreen('scrap');
@@ -880,7 +901,7 @@ const TERRAIN=Array.from({length:22},(_,i)=>({
   type:Math.random()>.45?'rock':'dash',spd:.45+Math.random()*.5
 }));
 
-function startCombat(nodeType){
+function startCombat(nodeType,eDef){
   pendingNodeType=nodeType;
   const{ch,wps,en,ar}=getBuild();
   const totalHp=runState.hp;
@@ -893,8 +914,7 @@ function startCombat(nodeType){
     weapons:wps.map(wp=>({...wp,timer:0})),
     flash:0,burn:0,burnT:0,dmgOut:0,dmgIn:0,hits:0};
 
-  const pool=ENEMIES[nodeType]||ENEMIES.fight;
-  const eDef=pool[Math.floor(Math.random()*pool.length)];
+  if(!eDef){const pool=ENEMIES[nodeType]||ENEMIES.fight;eDef=pool[Math.floor(Math.random()*pool.length)];}
   enemy={isPlayer:false,name:eDef.name,kind:eDef.kind,color:'#d83a30',
     hp:eDef.hp,maxHp:eDef.hp,spd:eDef.spd,maxSpd:eDef.spd,arm:eDef.arm,
     weapons:[{id:'gun',name:'步槍',range:eDef.wRange,cd:eDef.wCd,dmg:eDef.wDmg,timer:0}],
@@ -936,6 +956,10 @@ function lerp(a,b,t){return a+(b-a)*Math.min(1,Math.max(0,t));}
 function update(dt){
   elapsed+=dt;
   tickV(player,dt);tickV(enemy,dt);
+  // 敵方追逐 AI：射程外減速讓玩家追上，射程內全速
+  const eRange=enemy.weapons[0].range;
+  const eTargetSpd=gap>eRange?Math.max(0.5,player.spd*0.85):enemy.maxSpd;
+  enemy.spd+=(eTargetSpd-enemy.spd)*Math.min(1,dt*2.5);
   for(const w of player.weapons){
     w.timer=Math.max(0,w.timer-dt);
     if(w.timer<=0&&gap<=w.range)fireWeapon(w,player,enemy);
