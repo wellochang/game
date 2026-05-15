@@ -572,9 +572,11 @@ function renderLoadoutStrip(){
   });
   strip.appendChild(chips);
 
-  const stance=getStance(build.weapons);
+  const wps=build.weapons.map(id=>WEAPONS.find(w=>w.id===id)).filter(Boolean);
+  const maxRange=wps.length?Math.max(...wps.map(w=>w.range)):0;
+  const totalDmg=wps.reduce((s,w)=>s+(w.dmg/w.cd),0);
   const st=document.createElement('div');st.style.cssText='font-size:12px;color:var(--dim);margin-top:6px;padding-top:5px;border-top:1px dashed var(--line)';
-  st.textContent='戰術距離 '+stance.targetGap+'px'+(stance.fleeGap?' ／ 逃跑 <'+stance.fleeGap+'px':'');
+  st.textContent=`最大射程 ${maxRange}px　DPS ${totalDmg.toFixed(1)}`;
   strip.appendChild(st);
 }
 
