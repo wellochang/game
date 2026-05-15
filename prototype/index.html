@@ -243,6 +243,11 @@ button{font-family:inherit;color:inherit;cursor:pointer}
       <div class="panel-hdr"><span class="lbl sk">HIGHWAY</span><span class="info" id="enc-sim">// 1×</span></div>
       <div class="enc-canvas-wrap">
         <canvas id="cc"></canvas>
+        <div id="zone-select" style="display:none;position:absolute;inset:0;background:rgba(10,6,4,0.88);flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:5">
+          <div class="sk" style="font-size:11px;color:var(--bright);letter-spacing:.1em">選擇速度區塊</div>
+          <div id="zone-btns" style="display:flex;gap:6px"></div>
+          <div id="zone-info" style="font-size:14px;color:var(--dim);text-align:center"></div>
+        </div>
       </div>
       <div style="padding:10px 14px;border-top:2px solid var(--line);background:var(--bg2);display:flex;gap:8px;align-items:center;flex-shrink:0">
         <button class="pxbtn sk" id="btn-pause" onclick="togglePause()" style="font-size:10px">⏸ PAUSE</button>
@@ -887,6 +892,10 @@ const ENEMIES={
   ],
 };
 
+const ZONE_SPDS=[0.4,0.8,1.2,1.8,2.6];
+const ENGINE_ACCEL={diesel:1,nitro:2,hybrid:1};
+const ROUND_DURATION=3;
+
 const combatCanvas=document.getElementById('cc');
 const ctx=combatCanvas.getContext('2d');
 let W=900,H=430; const SCALE=0.72;
@@ -897,6 +906,7 @@ let lastTime=0,combatAnimId=null;
 let pendingNodeType=null;
 let combatPaused=false,combatSimSpeed=1;
 let combatPSX=220,combatESX=680;
+let playerZone=3,enemyZone=3,roundTimer=0,zoneSelectActive=false,playerAccel=1;
 
 const TERRAIN=Array.from({length:22},(_,i)=>({
   wx:i*120+Math.random()*70,y:4+Math.random()*22,
@@ -926,6 +936,13 @@ function startCombat(nodeType,eDef){
   gap=450;phase='combat';elapsed=0;
   combatLog=[`// ${player.name} vs ${enemy.name}`];
   worldX=0;bgScroll=0;floaters=[];tracers=[];particles=[];
+  playerAccel=ENGINE_ACCEL[build.engine]||1;
+  playerZone=3;
+  enemyZone=(nodeType==='fight')?2:4;
+  player.spd=ZONE_SPDS[playerZone-1];
+  enemy.spd=ZONE_SPDS[enemyZone-1];
+  roundTimer=ROUND_DURATION;
+  zoneSelectActive=false;
 
   goScreen('combat');
   // 更新 header 與 sidebar 初始資訊
@@ -946,7 +963,7 @@ function startCombat(nodeType,eDef){
   const loop=(now)=>{
     if(phase!=='combat')return;
     const rawDt=Math.min(0.05,(now-lastTime)/1000);lastTime=now;
-    const dt=combatPaused?0:rawDt*combatSimSpeed;
+    const dt=(combatPaused||zoneSelectActive)?0:rawDt*combatSimSpeed;
     if(dt>0)update(dt);
     drawCombat();
     combatAnimId=requestAnimationFrame(loop);
@@ -959,10 +976,10 @@ function lerp(a,b,t){return a+(b-a)*Math.min(1,Math.max(0,t));}
 function update(dt){
   elapsed+=dt;
   tickV(player,dt);tickV(enemy,dt);
-  // 敵方追逐 AI：射程外減速讓玩家追上，射程內全速
-  const eRange=enemy.weapons[0].range;
-  const eTargetSpd=gap>eRange?Math.max(0.5,player.spd*0.85):enemy.maxSpd;
-  enemy.spd+=(eTargetSpd-enemy.spd)*Math.min(1,dt*2.5);
+  player.spd=ZONE_SPDS[playerZone-1];
+  enemy.spd=ZONE_SPDS[enemyZone-1];
+  roundTimer+=dt;
+  if(roundTimer>=ROUND_DURATION)triggerZoneSelect();
   for(const w of player.weapons){
     w.timer=Math.max(0,w.timer-dt);
     if(w.timer<=0&&gap<=w.range)fireWeapon(w,player,enemy);
@@ -996,6 +1013,11 @@ function tickV(v,dt){
 function fireWeapon(w,src,tgt){
   const dmg=Math.max(1,Math.floor(w.dmg*(0.85+Math.random()*.3)-tgt.arm*.5));
   tgt.hp=Math.max(0,tgt.hp-dmg);tgt.flash=1;
+  if(!src.isPlayer&&build.chassis==='scout'&&Math.random()<0.2){
+    playerZone=Math.max(1,playerZone-1);
+    player.spd=ZONE_SPDS[playerZone-1];
+    addLog(`⚡ 受擊失速→Z${playerZone}`);
+  }
   src.dmgOut+=dmg;tgt.dmgIn+=dmg;src.hits++;w.timer=w.cd;
   if(w.pull){gap=Math.max(0,gap-14);addLog(`‹ ${w.name} PULL -${dmg}`);}
   else if(src.isPlayer)addLog(`› ${w.name} -${dmg}`);
@@ -1075,19 +1097,19 @@ function updateCombatSidebar(){
   if(!player||!enemy)return;
   const pHpPct=Math.max(0,player.hp/player.maxHp);
   const pHpCol=pHpPct>.5?'#44bb33':pHpPct>.25?'#ddaa22':'#dd3333';
-  const pSpdPct=Math.min(1,player.spd/player.maxSpd);
+  const pSpdPct=playerZone/5;
   const eHpPct=Math.max(0,enemy.hp/enemy.maxHp);
   const eHpCol=eHpPct>.5?'#44bb33':eHpPct>.25?'#ddaa22':'#dd3333';
   const $=id=>document.getElementById(id);
   const hpFill=$('cs-hp-fill');hpFill.style.width=`calc(${pHpPct*100}% - 2px)`;hpFill.style.background=pHpCol;
   $('cs-hp-txt').textContent=`${Math.round(player.hp)}/${player.maxHp}`;
   $('cs-sp-fill').style.width=`calc(${pSpdPct*100}% - 2px)`;
-  $('cs-sp-txt').textContent=`${Math.round(player.spd*60)} km/h`;
+  $('cs-sp-txt').textContent=`Z${playerZone}`;
   const eHpFill=$('cs-ehp-fill');eHpFill.style.width=`calc(${eHpPct*100}% - 2px)`;eHpFill.style.background=eHpCol;
   $('cs-ehp-txt').textContent=`${Math.round(enemy.hp)}/${enemy.maxHp}`;
-  const eSpdPct=Math.min(1,enemy.spd/enemy.maxSpd);
+  const eSpdPct=enemyZone/5;
   $('cs-esp-fill').style.width=`calc(${eSpdPct*100}% - 2px)`;
-  $('cs-esp-txt').textContent=`${Math.round(enemy.spd*60)} km/h`;
+  $('cs-esp-txt').textContent=`Z${enemyZone}`;
   $('cs-edist').textContent=`距離 ${Math.round(gap)} px`;
   // 戰鬥 log
   const logEl=$('cs-log');
@@ -1131,6 +1153,76 @@ function drawMid(){
   [{x:80,w:30,h:14},{x:240,w:18,h:8},{x:380,w:40,h:20},{x:520,w:22,h:10},{x:700,w:34,h:16},{x:860,w:16,h:6}].forEach(wr=>{
     const x=((wr.x-off)%(W+400)+W+400)%(W+400)-100;ctx.fillRect(x,by-wr.h,wr.w,wr.h);ctx.fillRect(x+Math.floor(wr.w/2),by-wr.h-4,1,4);
   });
+}
+
+function triggerZoneSelect(){
+  if(zoneSelectActive||phase!=='combat')return;
+  zoneSelectActive=true;
+  roundTimer=0;
+  const container=document.getElementById('zone-btns');
+  const infoEl=document.getElementById('zone-info');
+  container.innerHTML='';
+  const minZ=Math.max(1,playerZone-playerAccel);
+  const maxZ=Math.min(5,playerZone+playerAccel);
+  const isHauler=build.chassis==='hauler';
+  const isHybrid=build.engine==='hybrid';
+  const wpnInfo=player.weapons.map(w=>w.name+(gap<=w.range?'✓':'(OOR)')).join(' ');
+  const defaultInfo=`gap ${Math.round(gap)}px  敵Z${enemyZone}  ${wpnInfo}`;
+  infoEl.textContent=defaultInfo;
+  for(let z=1;z<=5;z++){
+    const inRange=z>=minZ&&z<=maxZ;
+    const rollPct=isHauler?(z===4?(isHybrid?10:20):z===5?(isHybrid?35:45):0):0;
+    const btn=document.createElement('button');
+    btn.className='pxbtn sk';
+    btn.style.cssText='font-size:11px;min-width:52px;padding:8px 10px;text-align:center';
+    btn.textContent=`Z${z}`;
+    if(rollPct>0){
+      const w=document.createElement('div');
+      w.style.cssText='font-size:9px;color:var(--blood);margin-top:2px';
+      w.textContent=`${rollPct}%失控`;
+      btn.appendChild(w);
+    }
+    if(z===playerZone)btn.style.borderColor='var(--bright)';
+    btn.disabled=!inRange;
+    if(inRange){
+      btn.onmouseenter=()=>{
+        const delta=(ZONE_SPDS[z-1]-ZONE_SPDS[enemyZone-1])*60*ROUND_DURATION;
+        const pred=Math.max(0,Math.min(800,gap-delta));
+        const hits=player.weapons.filter(w=>pred<=w.range).map(w=>w.name).join(',');
+        infoEl.textContent=`Z${z}: gap→${Math.round(pred)}px${hits?' 射程:'+hits:''}${rollPct?' ⚠'+rollPct+'%':''}`;
+      };
+      btn.onmouseleave=()=>infoEl.textContent=defaultInfo;
+      btn.onclick=()=>confirmZone(z);
+    }
+    container.appendChild(btn);
+  }
+  document.getElementById('zone-select').style.display='flex';
+}
+
+function confirmZone(z){
+  const isHauler=build.chassis==='hauler';
+  const isHybrid=build.engine==='hybrid';
+  const rollPct=isHauler?(z===4?(isHybrid?10:20):z===5?(isHybrid?35:45):0):0;
+  let finalZone=z;
+  if(rollPct>0&&Math.random()*100<rollPct){
+    finalZone=2;
+    addLog(`⚠ 車架失控→Z2`);
+    spawnFloat(player,'失控 Z2','#d83a30');
+  }
+  playerZone=finalZone;
+  player.spd=ZONE_SPDS[playerZone-1];
+  enemySelectZone();
+  document.getElementById('zone-select').style.display='none';
+  zoneSelectActive=false;
+}
+
+function enemySelectZone(){
+  const tgt=enemy.weapons[0].range*0.7;
+  const prev=enemyZone;
+  if(gap>tgt+40&&enemyZone>1)enemyZone--;
+  else if(gap<tgt-40&&enemyZone<5)enemyZone++;
+  enemy.spd=ZONE_SPDS[enemyZone-1];
+  if(enemyZone!==prev)addLog(`敵方→Z${enemyZone}`);
 }
 
 function endCombat(win){
