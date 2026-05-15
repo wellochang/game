@@ -264,6 +264,7 @@ button{font-family:inherit;color:inherit;cursor:pointer}
         <hr style="border:none;border-top:1px dashed var(--line);margin:2px 0">
         <div class="sk" style="font-size:11px;color:var(--dim)" id="cs-ename">HOSTILE</div>
         <div class="stat-row"><span class="stat-lbl sk">HULL</span><div class="stat-track"><div class="stat-fill" id="cs-ehp-fill" style="background:#a4232a"></div><div class="stat-num" id="cs-ehp-txt"></div></div></div>
+        <div class="stat-row"><span class="stat-lbl sk">SPEED</span><div class="stat-track"><div class="stat-fill" id="cs-esp-fill" style="background:var(--steel)"></div><div class="stat-num" id="cs-esp-txt"></div></div></div>
         <div id="cs-edist" style="font-size:14px;color:var(--dim)"></div>
         <hr style="border:none;border-top:1px dashed var(--line);margin:2px 0">
         <div class="sk" style="font-size:11px;color:var(--dim)">RADIO CHATTER</div>
@@ -1082,6 +1083,9 @@ function updateCombatSidebar(){
   $('cs-sp-txt').textContent=`${Math.round(player.spd*60)} km/h`;
   const eHpFill=$('cs-ehp-fill');eHpFill.style.width=`calc(${eHpPct*100}% - 2px)`;eHpFill.style.background=eHpCol;
   $('cs-ehp-txt').textContent=`${Math.round(enemy.hp)}/${enemy.maxHp}`;
+  const eSpdPct=Math.min(1,enemy.spd/enemy.maxSpd);
+  $('cs-esp-fill').style.width=`calc(${eSpdPct*100}% - 2px)`;
+  $('cs-esp-txt').textContent=`${Math.round(enemy.spd*60)} km/h`;
   $('cs-edist').textContent=`距離 ${Math.round(gap)} px`;
   // 戰鬥 log
   const logEl=$('cs-log');
