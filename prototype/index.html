@@ -969,6 +969,7 @@ let lastTime=0,combatAnimId=null;
 let pendingNodeType=null;
 let combatPaused=false,combatSimSpeed=1;
 let combatPSX=220,combatESX=680;
+let playerVisX=-1,enemyVisX=-1;
 let playerZone=3,enemyZone=3,roundTimer=0,zoneSelectActive=false,playerAccel=1;
 
 const TERRAIN=Array.from({length:22},(_,i)=>({
@@ -999,6 +1000,7 @@ function startCombat(nodeType,eDef){
   gap=450;phase='combat';elapsed=0;
   combatLog=[`// ${player.name} vs ${enemy.name}`];
   worldX=0;bgScroll=0;floaters=[];tracers=[];particles=[];
+  playerVisX=-1;enemyVisX=-1;
   playerAccel=ENGINE_ACCEL[build.engine]||1;
   playerZone=3;
   enemyZone=(nodeType==='fight')?2:4;
@@ -1111,12 +1113,26 @@ function drawCombat(){
   drawMtns();drawMid();
   ctx.fillStyle='#1a120c';ctx.fillRect(0,H*.72,W,H*.28);
   for(let i=0;i<12;i++){const y=H*.72+4+i*8,off=((worldX*(.5+i*.08))%60);ctx.fillStyle=`rgba(184,154,106,${.05+(i/12)*.08})`;for(let x=-off;x<W;x+=60)ctx.fillRect(x,y,30,1);}
-  const roadY=H*.82+26;
-  ctx.strokeStyle='rgba(244,225,179,0.18)';ctx.lineWidth=2;ctx.setLineDash([24,18]);ctx.lineDashOffset=-(worldX%42);
-  ctx.beginPath();ctx.moveTo(0,roadY);ctx.lineTo(W,roadY);ctx.stroke();ctx.setLineDash([]);
+  const roadTop=Math.floor(H*.72);
   const baseY=Math.floor(H*.82)-4;
-  const eSX=W-220;
-  const pSX=Math.max(60,eSX-gap*SCALE);
+  // ── Zone lanes ──────────────────────────────────────────────────────────
+  const zoneW=W/5;
+  for(let z=1;z<=5;z++){
+    const zx=(z-1)*zoneW;
+    if(z%2===0){ctx.fillStyle='rgba(255,255,255,0.025)';ctx.fillRect(zx,roadTop,zoneW,H-roadTop);}
+    if(z>1){ctx.strokeStyle='rgba(184,154,106,0.18)';ctx.lineWidth=1;ctx.setLineDash([4,10]);ctx.beginPath();ctx.moveTo(zx,roadTop);ctx.lineTo(zx,H);ctx.stroke();ctx.setLineDash([]);}
+    ctx.fillStyle=`rgba(184,154,106,${z===playerZone||z===enemyZone?0.7:0.28})`;
+    ctx.font='9px Silkscreen,monospace';ctx.textAlign='center';
+    ctx.fillText(`Z${z}`,zx+zoneW/2,roadTop+13);
+  }
+  // zone-based vehicle X positions with lerp
+  let tPSX=W*(2*playerZone-1)/10;
+  let tESX=W*(2*enemyZone-1)/10;
+  if(playerZone===enemyZone){tPSX-=28;tESX+=28;}
+  if(playerVisX<0){playerVisX=tPSX;enemyVisX=tESX;}
+  else{playerVisX=lerp(playerVisX,tPSX,0.025);enemyVisX=lerp(enemyVisX,tESX,0.025);}
+  const pSX=Math.round(playerVisX);
+  const eSX=Math.round(enemyVisX);
   combatPSX=pSX; combatESX=eSX;
   for(const t of tracers){const x1=t.fromPlayer?pSX+carPxW(player.kind)/2:eSX-carPxW(enemy.kind)/2,x2=t.fromPlayer?eSX:pSX;ctx.strokeStyle=t.color;ctx.lineWidth=t.thick;ctx.beginPath();ctx.moveTo(x1,baseY-30);ctx.lineTo(x2,baseY-30);ctx.stroke();}
   drawV(pSX,baseY,player,true);drawV(eSX,baseY,enemy,false);
