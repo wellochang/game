@@ -1138,7 +1138,7 @@ let pendingNodeType=null;
 let combatPaused=false,combatSimSpeed=1;
 let combatPSX=220,combatESX=680;
 let playerVisX=-1,enemyVisX=-1,introTimer=0;
-const INTRO_DURATION=1;
+const INTRO_DURATION=2;
 let playerZone=3,enemyZone=3,roundTimer=0,zoneSelectActive=false,playerAccel=1;
 let playerZoneStart=3,playerZoneTarget=3,enemyZoneStart=3,enemyZoneTarget=3;
 let roundTick=0,tickAccum=0;
@@ -1330,11 +1330,11 @@ function drawCombat(){
   let tPSX=W*(2*playerZone-1)/10;
   let tESX=W*(2*enemyZone-1)/10;
   if(playerZone===enemyZone){tPSX-=28;tESX+=28;}
-  const lerpSpd=phase==='end-win'?0.08:0.025;
+  const lerpSpd=phase==='end-win'?0.08:phase==='intro'?0.038:0.025;
   if(playerVisX<0){playerVisX=tPSX;enemyVisX=tESX;}
   else{
     playerVisX=phase==='intro'?tPSX:lerp(playerVisX,tPSX,lerpSpd);
-    enemyVisX=lerp(enemyVisX,tESX,phase==='intro'?0.18:lerpSpd);
+    enemyVisX=lerp(enemyVisX,tESX,lerpSpd);
   }
   const pSX=Math.round(playerVisX);
   const eSX=Math.round(enemyVisX);
