@@ -1137,7 +1137,8 @@ let lastTime=0,combatAnimId=null;
 let pendingNodeType=null;
 let combatPaused=false,combatSimSpeed=1;
 let combatPSX=220,combatESX=680;
-let playerVisX=-1,enemyVisX=-1;
+let playerVisX=-1,enemyVisX=-1,introTimer=0;
+const INTRO_DURATION=3;
 let playerZone=3,enemyZone=3,roundTimer=0,zoneSelectActive=false,playerAccel=1;
 let playerZoneStart=3,playerZoneTarget=3,enemyZoneStart=3,enemyZoneTarget=3;
 let roundTick=0,tickAccum=0;
@@ -1174,10 +1175,9 @@ function startCombat(nodeType,eDef){
     weapons:[{id:'gun',name:'步槍',range:eDef.wRange,zoneRange:eDef.wZoneRange??1,cd:eDef.wCd,dmg:eDef.wDmg,timer:0}],
     flash:0,burn:0,burnT:0,dmgOut:0,dmgIn:0,hits:0};
 
-  gap=450;phase='combat';elapsed=0;
+  gap=450;phase='intro';elapsed=0;introTimer=0;
   combatLog=[`// ${player.name} vs ${enemy.name}`];
   worldX=0;bgScroll=0;floaters=[];tracers=[];particles=[];
-  playerVisX=-1;enemyVisX=-1;
   playerAccel=ENGINE_ACCEL[build.engine]||1;
   playerZone=3; enemyZone=(nodeType==='fight')?2:4;
   playerZoneStart=playerZoneTarget=playerZone;
@@ -1187,6 +1187,9 @@ function startCombat(nodeType,eDef){
   enemy.spd=ZONE_SPDS[enemyZone-1];
   roundTimer=0;
   zoneSelectActive=false;
+  // 玩家：直接對齊 Z3；敵方：從螢幕外滑入
+  playerVisX=900*(2*playerZone-1)/10;
+  enemyVisX=enemyZone<=playerZone ? -160 : 900+160; // 左入或右入
 
   goScreen('combat');
   // 更新 header 與 sidebar 初始資訊
@@ -1205,10 +1208,15 @@ function startCombat(nodeType,eDef){
   lastTime=performance.now();
   if(combatAnimId)cancelAnimationFrame(combatAnimId);
   const loop=(now)=>{
-    if(phase!=='combat')return;
+    if(phase!=='combat'&&phase!=='intro')return;
     const rawDt=Math.min(0.05,(now-lastTime)/1000);lastTime=now;
-    const dt=(combatPaused||zoneSelectActive)?0:rawDt*combatSimSpeed;
-    if(dt>0)update(dt);
+    if(phase==='intro'){
+      introTimer+=rawDt;
+      if(introTimer>=INTRO_DURATION)phase='combat';
+    } else {
+      const dt=(combatPaused||zoneSelectActive)?0:rawDt*combatSimSpeed;
+      if(dt>0)update(dt);
+    }
     drawCombat();
     combatAnimId=requestAnimationFrame(loop);
   };
