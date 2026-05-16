@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>廢土衝鋒 — v0.6.0</title>
+<title>廢土衝鋒 — v0.7.0</title>
 <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -95,7 +95,7 @@ button{font-family:inherit;color:inherit;cursor:pointer}
 
 /* ── Scrap / Event ── */
 .se-body{flex:1;display:grid;gap:14px;min-height:0}
-#scrap .se-body{grid-template-columns:repeat(3,1fr)}
+#scrap .se-body{grid-template-columns:repeat(2,1fr)}
 #event .se-body{grid-template-columns:300px 1fr}
 .option-card{display:flex;flex-direction:column;align-items:center;gap:14px;padding:20px}
 .option-card .icon{font-size:48px;line-height:1}
@@ -212,6 +212,14 @@ button{font-family:inherit;color:inherit;cursor:pointer}
       </div>
     </div>
     <div class="panel bolts">
+      <div class="panel-hdr"><span class="lbl sk">補充燃料</span><span class="info">// 油桶</span></div>
+      <div class="option-card">
+        <div class="icon">⛽</div>
+        <div style="font-size:18px;color:var(--dim);text-align:center">補充 <span style="color:var(--acid)">+3 FUEL</span><br>花費 <span style="color:var(--bright)">2 廢料</span></div>
+        <button class="pxbtn sk" id="fuel-btn">加油</button>
+      </div>
+    </div>
+    <div class="panel bolts">
       <div class="panel-hdr"><span class="lbl sk">離開</span><span class="info">// 繼續上路</span></div>
       <div class="option-card">
         <div class="icon">💨</div>
@@ -282,6 +290,7 @@ button{font-family:inherit;color:inherit;cursor:pointer}
         <div class="sk" style="font-size:11px;color:var(--bright)" id="cs-pname">YOU</div>
         <div class="stat-row"><span class="stat-lbl sk">HULL</span><div class="stat-track"><div class="stat-fill" id="cs-hp-fill" style="background:var(--blood)"></div><div class="stat-num" id="cs-hp-txt"></div></div></div>
         <div class="stat-row"><span class="stat-lbl sk">SPEED</span><div class="stat-track"><div class="stat-fill" id="cs-sp-fill" style="background:var(--rust)"></div><div class="stat-num" id="cs-sp-txt"></div></div></div>
+        <div class="stat-row"><span class="stat-lbl sk">FUEL</span><div class="stat-track"><div class="stat-fill" id="cs-fuel-fill" style="background:var(--acid)"></div><div class="stat-num" id="cs-fuel-txt"></div></div></div>
         <div id="cs-extra" style="font-size:14px;color:var(--dim)"></div>
         <hr style="border:none;border-top:1px dashed var(--line);margin:2px 0">
         <div class="sk" style="font-size:11px;color:var(--dim)" id="cs-ename">HOSTILE</div>
@@ -379,15 +388,15 @@ function carPxW(kind){const c=CAR[kind];return c?(c.len+6)*3:90;}
 // ═══════════════════════════════════════════════
 
 const CHASSIS=[
-  {id:'scout', name:'Scout', capacity:6,  slots:1, s:{HP:12,MOV:4,ARM:0},desc:'輕快車架。速度快，側翼突破。'},
-  {id:'runner',name:'Runner',capacity:10, slots:2, s:{HP:18,MOV:3,ARM:1},desc:'均衡戰車。強壯又靈活。'},
-  {id:'hauler',name:'Hauler',capacity:16, slots:3, s:{HP:28,MOV:2,ARM:2},desc:'重裝坦克。骨板焊死，耐打。'},
+  {id:'scout', name:'Scout', capacity:6,  slots:1, s:{HP:80, MOV:4,ARM:0},desc:'輕快車架。速度快，側翼突破。'},
+  {id:'runner',name:'Runner',capacity:10, slots:2, s:{HP:120,MOV:3,ARM:1},desc:'均衡戰車。強壯又靈活。'},
+  {id:'hauler',name:'Hauler',capacity:16, slots:3, s:{HP:180,MOV:2,ARM:2},desc:'重裝坦克。骨板焊死，耐打。'},
 ];
 const WEAPONS=[
-  {id:'flamer',    name:'Flamer',     weight:1,s:{DMG:2,RNG:2},desc:'短距，持續燃燒 3s。',    range:160,zoneRange:0,cd:0.5,dmg:7, burn:true},
+  {id:'flamer',    name:'Flamer',     weight:1,s:{DMG:2,RNG:2},desc:'短距，燃燒 3s，AoE。',    range:160,zoneRange:0,cd:0.5,dmg:7, burn:true, aoe:true},
   {id:'harpoon',   name:'Harpoon',    weight:2,s:{DMG:3,RNG:4},desc:'命中後將目標拉近 14px。',range:320,zoneRange:1,cd:1.5,dmg:10,pull:true},
   {id:'autocannon',name:'Autocannon', weight:3,s:{DMG:4,RNG:5},desc:'直線飛行，高射速主力砲。',range:400,zoneRange:2,cd:0.9,dmg:14},
-  {id:'mortar',    name:'Mortar',     weight:5,s:{DMG:5,RNG:7},desc:'弧線飛行，射程最遠。',    range:560,zoneRange:3,cd:2.6,dmg:22},
+  {id:'mortar',    name:'Mortar',     weight:5,s:{DMG:5,RNG:7},desc:'弧線飛行，射程最遠，AoE。', range:560,zoneRange:3,cd:2.6,dmg:22,aoe:true},
 ];
 const ENGINES=[
   {id:'diesel',name:'Diesel',s:{MOV:0,FUEL:12},desc:'穩定，便宜。'},
@@ -599,7 +608,7 @@ function updatePreview(){
   const hp=ch.s.HP+ar.s.HP,arm=ch.s.ARM+ar.s.ARM,mov=ch.s.MOV+en.s.MOV,fuel=en.s.FUEL;
   document.getElementById('lbl-ch').textContent='└── '+build.chassis;
   document.getElementById('lbl-wp').textContent=(build.weapons.join('+')||'none')+' ──┘';
-  setBar('hull',hp,36);setBar('arm',arm,6);setBar('spd',mov,8);setBar('fuel',fuel,20);
+  setBar('hull',hp,200);setBar('arm',arm,6);setBar('spd',mov,8);setBar('fuel',fuel,20);
   const cfg=CAR[build.chassis];
   const carW=(cfg.len+10)*3,carH=(cfg.top+cfg.bh+cfg.wr+8)*3;
   const pc=document.getElementById('preview-c');pc.width=carW;pc.height=carH;
@@ -627,8 +636,9 @@ let runState=null;
 function startRun(){
   const{ch,wp,en,ar}=getBuild();
   const hp=Math.max(1,ch.s.HP+ar.s.HP);
+  const fuel=en.s.FUEL;
   runState={
-    hp,maxHp:hp,scrap:3,
+    hp,maxHp:hp,scrap:3,fuel,
     callsign:build.callsign,
     chassis:build.chassis,weapon:build.weapon,engine:build.engine,armor:build.armor,
     currentNodeId:null,visited:[],log:[],
@@ -739,7 +749,7 @@ let mapAnimId=null,mapT=0;
 let mapScene={scroll:0,signRects:[],hovered:-1,picking:null,pickT:0,enterT:0};
 
 function renderMapScreen(){
-  document.getElementById('map-stats').textContent=`${runState.callsign}  HULL ${runState.hp}/${runState.maxHp}  廢料 ${runState.scrap}`;
+  document.getElementById('map-stats').textContent=`${runState.callsign}  HULL ${runState.hp}/${runState.maxHp}  廢料 ${runState.scrap}  FUEL ${runState.fuel}`;
   document.getElementById('map-sector').textContent=`// sector ${Math.min(6,runState.visited.length+1)} / 6`;
   renderLog();
   renderMapProgress();
@@ -1032,12 +1042,14 @@ function renderLog(){
 // ═══════════════════════════════════════════════
 
 function renderScrap(){
-  document.getElementById('scrap-stats').textContent=`HULL ${runState.hp}/${runState.maxHp}  廢料 ${runState.scrap}`;
+  document.getElementById('scrap-stats').textContent=`HULL ${runState.hp}/${runState.maxHp}  廢料 ${runState.scrap}  FUEL ${runState.fuel}`;
   const repairBtn=document.getElementById('repair-btn');
   const weldBtn=document.getElementById('weld-btn');
+  const fuelBtn=document.getElementById('fuel-btn');
   repairBtn.disabled=runState.scrap<2||runState.hp>=runState.maxHp;
   repairBtn.textContent=runState.hp>=runState.maxHp?'船殼滿血':'敲一敲';
   weldBtn.disabled=runState.scrap<4;
+  fuelBtn.disabled=runState.scrap<2;
 }
 
 document.getElementById('repair-btn').addEventListener('click',()=>{
@@ -1050,6 +1062,12 @@ document.getElementById('weld-btn').addEventListener('click',()=>{
   if(runState.scrap<4)return;
   runState.maxHp+=3;runState.hp+=3;runState.scrap-=4;
   runState.log.push(`焊接裝甲 +3 MAX HP（-4 廢料）`);
+  goScreen('map');renderMapScreen();
+});
+document.getElementById('fuel-btn').addEventListener('click',()=>{
+  if(runState.scrap<2)return;
+  runState.fuel+=3;runState.scrap-=2;
+  runState.log.push(`補充燃料 +3 FUEL（-2 廢料）`);
   goScreen('map');renderMapScreen();
 });
 function leaveScrap(){runState.log.push('沒動廢料，繼續上路。');goScreen('map');renderMapScreen();}
@@ -1082,7 +1100,7 @@ let currentEvent=null;
 function renderEvent(){
   currentEvent=EVENTS[Math.floor(Math.random()*EVENTS.length)];
   const ev=currentEvent;
-  document.getElementById('event-stats').textContent=`HULL ${runState.hp}/${runState.maxHp}  廢料 ${runState.scrap}`;
+  document.getElementById('event-stats').textContent=`HULL ${runState.hp}/${runState.maxHp}  廢料 ${runState.scrap}  FUEL ${runState.fuel}`;
   document.getElementById('ev-icon').textContent=ev.icon;
   document.getElementById('ev-title').textContent=ev.title;
   document.getElementById('ev-sub').textContent=`// 廢料 ${runState.scrap}  HP ${runState.hp}`;
@@ -1398,6 +1416,10 @@ function updateCombatSidebar(){
   $('cs-esp-fill').style.width=`calc(${eSpdPct*100}% - 2px)`;
   $('cs-esp-txt').textContent=`Z${enemyZone}`;
   $('cs-edist').textContent=`zone差 ${Math.abs(playerZone-enemyZone)}　tick ${roundTick}/${ROUND_DURATION}`;
+  const fuelPct=Math.max(0,(runState.fuel||0)/20);
+  const fuelCol=fuelPct>.4?'var(--acid)':fuelPct>.2?'#ddaa22':'#dd3333';
+  const fuelFill=$('cs-fuel-fill');fuelFill.style.width=`calc(${fuelPct*100}% - 2px)`;fuelFill.style.background=fuelCol;
+  $('cs-fuel-txt').textContent=`${runState.fuel||0}`;
   // 戰鬥 log
   const logEl=$('cs-log');
   const html=combatLog.map((l,i)=>`<div style="color:${i===0?'var(--ink)':'var(--dim)'}">${l}</div>`).join('');
@@ -1444,6 +1466,9 @@ function drawMid(){
 
 function triggerZoneSelect(){
   if(zoneSelectActive||phase!=='combat')return;
+  runState.fuel=Math.max(0,(runState.fuel||0)-1);
+  if(runState.fuel<=0){addLog('⛽ 燃料耗盡！引擎熄火');endCombat(false);return;}
+  addLog(`⛽ FUEL ${runState.fuel+1}→${runState.fuel}`);
   zoneSelectActive=true;
   roundTimer=0;
   const container=document.getElementById('zone-btns');
@@ -1531,12 +1556,14 @@ function endCombat(win){
   const rb=document.getElementById('btn-retreat');if(rb)rb.disabled=true;
   if(win){
     const reward=pendingNodeType==='boss'?10:pendingNodeType==='elite'?5:3;
+    const fuelLoot=pendingNodeType==='boss'?0:pendingNodeType==='elite'?3:2;
     runState.hp=Math.max(1,Math.floor(player.hp));
     runState.scrap+=reward;
-    runState.log.push(`擊敗 ${enemy.name}。+${reward} 廢料。`);
+    if(fuelLoot>0)runState.fuel+=fuelLoot;
+    runState.log.push(`擊敗 ${enemy.name}。+${reward} 廢料${fuelLoot>0?`　+${fuelLoot} FUEL`:''}。`);
     document.getElementById('ot').textContent=pendingNodeType==='boss'?'石油男爵倒下了':'敵車摧毀';
     document.getElementById('ot').style.color='#e8762a';
-    document.getElementById('ostats').innerHTML=`+${reward} 廢料　剩餘 HP ${Math.round(player.hp)}/${runState.maxHp}`;
+    document.getElementById('ostats').innerHTML=`+${reward} 廢料${fuelLoot>0?`　+${fuelLoot} FUEL`:''}　剩餘 HP ${Math.round(player.hp)}/${runState.maxHp}　FUEL ${runState.fuel}`;
     if(pendingNodeType==='boss'){
       phase='end';
       if(combatAnimId){cancelAnimationFrame(combatAnimId);combatAnimId=null;}
