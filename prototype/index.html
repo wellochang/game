@@ -1332,7 +1332,10 @@ function drawCombat(){
   if(playerZone===enemyZone){tPSX-=28;tESX+=28;}
   const lerpSpd=phase==='end-win'?0.08:0.025;
   if(playerVisX<0){playerVisX=tPSX;enemyVisX=tESX;}
-  else{playerVisX=lerp(playerVisX,tPSX,lerpSpd);enemyVisX=lerp(enemyVisX,tESX,lerpSpd);}
+  else{
+    playerVisX=phase==='intro'?tPSX:lerp(playerVisX,tPSX,lerpSpd);
+    enemyVisX=lerp(enemyVisX,tESX,lerpSpd);
+  }
   const pSX=Math.round(playerVisX);
   const eSX=Math.round(enemyVisX);
   combatPSX=pSX; combatESX=eSX;
