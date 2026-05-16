@@ -504,7 +504,7 @@ function renderWeaponBuilder(content){
       el.innerHTML=`
         <div class="part-preview" style="height:auto;width:32px;flex-shrink:0"><canvas style="image-rendering:pixelated"></canvas></div>
         <span style="font-size:12px;color:var(--bright);font-family:Silkscreen,monospace;flex:1">${w.name.toUpperCase()}</span>
-        <span style="font-size:11px;color:var(--dim)">重${w.weight} 射${w.range} 傷${w.dmg} CD${w.cd}s</span>
+        <span style="font-size:11px;color:var(--dim)">重${w.weight} 射Z${w.zoneRange} 傷${w.dmg} CD${w.cd}s</span>
         <span style="font-size:12px;color:var(--blood);padding-left:4px">✕</span>`;
       const pc=el.querySelector('canvas');
       const sp=WPS[wid];if(sp){pc.width=sp[0].length*3;pc.height=sp.length*3;const c=pc.getContext('2d');c.imageSmoothingEnabled=false;drawSprite(c,sp,0,0,3);}
@@ -526,7 +526,7 @@ function renderWeaponBuilder(content){
       <span style="font-size:10px;background:var(--bg2);border:1px solid var(--line);color:var(--bright);padding:2px 5px;min-width:30px;text-align:center;font-family:Silkscreen,monospace">重${w.weight}</span>
       <div class="part-preview" style="height:auto;width:32px;flex-shrink:0"><canvas style="image-rendering:pixelated"></canvas></div>
       <span style="font-size:12px;color:var(--bright);font-family:Silkscreen,monospace;flex:1">${w.name.toUpperCase()}</span>
-      <span style="font-size:11px;color:var(--dim)">射${w.range} 傷${w.dmg} DPS ${dps}</span>`;
+      <span style="font-size:11px;color:var(--dim)">射Z${w.zoneRange} 傷${w.dmg} DPS ${dps}</span>`;
     const pc=el.querySelector('canvas');
     const sp=WPS[w.id];if(sp){pc.width=sp[0].length*3;pc.height=sp.length*3;const c=pc.getContext('2d');c.imageSmoothingEnabled=false;drawSprite(c,sp,0,0,3);}
     if(canAdd)el.onclick=()=>{build.weapons.push(w.id);renderGarage();};
@@ -580,16 +580,16 @@ function renderLoadoutStrip(){
     const sp=WPS[wid];if(sp){const pc=document.createElement('canvas');pc.style.imageRendering='pixelated';pc.width=sp[0].length*2;pc.height=sp.length*2;const ctx=pc.getContext('2d');ctx.imageSmoothingEnabled=false;drawSprite(ctx,sp,0,0,2);chip.appendChild(pc);}
     const efx=(w.burn?'[燃]':'')+(w.pull?'[拉]':'');
     const info=document.createElement('div');info.style.cssText='display:flex;flex-direction:column;gap:1px';
-    info.innerHTML=`<span style="font-size:10px;color:var(--bright);font-family:Silkscreen,monospace">${w.name.toUpperCase()}${efx?'<span style="color:var(--acid);margin-left:3px">'+efx+'</span>':''}</span><span style="font-size:11px;color:var(--dim)">射${w.range} 傷${w.dmg} CD${w.cd}s</span>`;
+    info.innerHTML=`<span style="font-size:10px;color:var(--bright);font-family:Silkscreen,monospace">${w.name.toUpperCase()}${efx?'<span style="color:var(--acid);margin-left:3px">'+efx+'</span>':''}</span><span style="font-size:11px;color:var(--dim)">射Z${w.zoneRange} 傷${w.dmg} CD${w.cd}s</span>`;
     chip.appendChild(info);chips.appendChild(chip);
   });
   strip.appendChild(chips);
 
   const wps=build.weapons.map(id=>WEAPONS.find(w=>w.id===id)).filter(Boolean);
-  const maxRange=wps.length?Math.max(...wps.map(w=>w.range)):0;
+  const maxRange=wps.length?Math.max(...wps.map(w=>w.zoneRange)):0;
   const totalDmg=wps.reduce((s,w)=>s+(w.dmg/w.cd),0);
   const st=document.createElement('div');st.style.cssText='font-size:12px;color:var(--dim);margin-top:6px;padding-top:5px;border-top:1px dashed var(--line)';
-  st.textContent=`最大射程 ${maxRange}px　DPS ${totalDmg.toFixed(1)}`;
+  st.textContent=`最大射程 Z${maxRange}　DPS ${totalDmg.toFixed(1)}`;
   strip.appendChild(st);
 }
 
