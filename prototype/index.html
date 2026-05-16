@@ -1208,11 +1208,13 @@ function startCombat(nodeType,eDef){
   lastTime=performance.now();
   if(combatAnimId)cancelAnimationFrame(combatAnimId);
   const loop=(now)=>{
-    if(phase!=='combat'&&phase!=='intro')return;
+    if(phase!=='combat'&&phase!=='intro'&&phase!=='end-win')return;
     const rawDt=Math.min(0.05,(now-lastTime)/1000);lastTime=now;
     if(phase==='intro'){
       introTimer+=rawDt;
       if(introTimer>=INTRO_DURATION)phase='combat';
+    } else if(phase==='end-win'){
+      playerZone=3; // lerp target → Z3
     } else {
       const dt=(combatPaused||zoneSelectActive)?0:rawDt*combatSimSpeed;
       if(dt>0)update(dt);
@@ -1328,8 +1330,9 @@ function drawCombat(){
   let tPSX=W*(2*playerZone-1)/10;
   let tESX=W*(2*enemyZone-1)/10;
   if(playerZone===enemyZone){tPSX-=28;tESX+=28;}
+  const lerpSpd=phase==='end-win'?0.08:0.025;
   if(playerVisX<0){playerVisX=tPSX;enemyVisX=tESX;}
-  else{playerVisX=lerp(playerVisX,tPSX,0.025);enemyVisX=lerp(enemyVisX,tESX,0.025);}
+  else{playerVisX=lerp(playerVisX,tPSX,lerpSpd);enemyVisX=lerp(enemyVisX,tESX,lerpSpd);}
   const pSX=Math.round(playerVisX);
   const eSX=Math.round(enemyVisX);
   combatPSX=pSX; combatESX=eSX;
@@ -1520,22 +1523,31 @@ function enemySelectZone(){
 
 function endCombat(win){
   if(phase!=='combat')return;
-  phase='end';
-  if(combatAnimId){cancelAnimationFrame(combatAnimId);combatAnimId=null;}
   const rb=document.getElementById('btn-retreat');if(rb)rb.disabled=true;
   if(win){
     const reward=pendingNodeType==='boss'?10:pendingNodeType==='elite'?5:3;
     runState.hp=Math.max(1,Math.floor(player.hp));
     runState.scrap+=reward;
     runState.log.push(`擊敗 ${enemy.name}。+${reward} 廢料。`);
-    if(pendingNodeType==='boss'){showEnd(true);}
-    else{setTimeout(()=>{goScreen('map');renderMapScreen();},1200);}
-    // flash victory briefly
     document.getElementById('ot').textContent=pendingNodeType==='boss'?'石油男爵倒下了':'敵車摧毀';
     document.getElementById('ot').style.color='#e8762a';
     document.getElementById('ostats').innerHTML=`+${reward} 廢料　剩餘 HP ${Math.round(player.hp)}/${runState.maxHp}`;
-    if(pendingNodeType!=='boss'){document.getElementById('ov').style.display='flex';setTimeout(()=>{document.getElementById('ov').style.display='none';},1100);}
+    if(pendingNodeType==='boss'){
+      phase='end';
+      if(combatAnimId){cancelAnimationFrame(combatAnimId);combatAnimId=null;}
+      showEnd(true);
+    } else {
+      phase='end-win'; // 保持 loop 讓玩家車滑回 Z3
+      if(pendingNodeType!=='boss'){document.getElementById('ov').style.display='flex';setTimeout(()=>{document.getElementById('ov').style.display='none';},1100);}
+      setTimeout(()=>{
+        if(combatAnimId){cancelAnimationFrame(combatAnimId);combatAnimId=null;}
+        phase='end';
+        goScreen('map');renderMapScreen();
+      },1200);
+    }
   }else{
+    phase='end';
+    if(combatAnimId){cancelAnimationFrame(combatAnimId);combatAnimId=null;}
     runState.hp=0;runState.log.push(`在 ${enemy.name} 交戰中報廢。`);
     showEnd(false);
   }
