@@ -77,14 +77,21 @@ button{font-family:inherit;color:inherit;cursor:pointer}
 .pxbtn.danger{border-color:var(--blood);color:var(--blood)}
 .pxbtn.danger:hover{background:#1a0808;border-color:var(--blood)}
 
-/* ── Map ── */
-.map-body{flex:1;display:grid;grid-template-columns:1fr 260px;gap:14px;min-height:0}
-#map-c{display:block;width:100%;flex:1;min-height:0;cursor:pointer}
-.map-panel{flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0}
-.log-panel{display:flex;flex-direction:column}
+/* ── Map (side-view, combat-style) ── */
+.map-body{flex:1;display:grid;grid-template-columns:1fr 290px;gap:14px;min-height:0}
+.map-hw{display:flex;flex-direction:column}
+.map-canvas-wrap{flex:1;min-height:0;position:relative;overflow:hidden;background:#0a0604}
+#map-c{position:absolute;inset:0;width:100%;height:100%;display:block;image-rendering:pixelated;image-rendering:crisp-edges;cursor:default}
+.map-side{display:flex;flex-direction:column;overflow:hidden}
 .log-body{flex:1;padding:14px;overflow:auto;display:flex;flex-direction:column;gap:8px}
 .log-entry{font-size:15px;color:var(--dim);line-height:1.3}
 .log-entry::before{content:'› ';color:var(--rust)}
+.map-overlay{position:absolute;left:14px;bottom:10px;display:flex;gap:5px;align-items:center;pointer-events:none;font-family:'Silkscreen',monospace;font-size:10px;color:var(--faint);letter-spacing:.08em;text-shadow:1px 1px 0 #000}
+.map-overlay .dot{font-size:13px}
+.map-overlay .dot.done{color:var(--bright)}
+.map-overlay .dot.here{color:#ffce5a}
+.map-overlay .dot.future{color:var(--faint)}
+.map-tip{position:absolute;top:14px;right:14px;font-family:'Silkscreen',monospace;font-size:10px;color:var(--dim);letter-spacing:.08em;text-shadow:1px 1px 0 #000;pointer-events:none}
 
 /* ── Scrap / Event ── */
 .se-body{flex:1;display:grid;gap:14px;min-height:0}
@@ -154,21 +161,27 @@ button{font-family:inherit;color:inherit;cursor:pointer}
 <div id="map" class="screen">
   <div class="g-hdr">
     <h1 class="sk">THE WASTELAND</h1>
-    <span class="sub">// 選擇下一段路線</span>
+    <span class="sub">// 看見前方公路上的路標</span>
     <span class="run" id="map-stats"></span>
   </div>
   <div class="map-body">
-    <div class="panel bolts map-panel">
-      <div class="panel-hdr"><span class="lbl sk">ROUTE MAP</span><span class="info" id="map-sector"></span></div>
-      <canvas id="map-c"></canvas>
+    <div class="panel bolts map-hw">
+      <div class="panel-hdr"><span class="lbl sk">HIGHWAY</span><span class="info" id="map-sector"></span></div>
+      <div class="map-canvas-wrap">
+        <canvas id="map-c"></canvas>
+        <div class="map-overlay" id="map-progress"></div>
+        <div class="map-tip">點選頭上路標決定路線</div>
+      </div>
+      <div style="padding:10px 14px;border-top:2px solid var(--line);background:var(--bg2);display:flex;gap:8px;align-items:center;flex-shrink:0">
+        <span class="sk" style="font-size:10px;color:var(--dim)">// 引擎運轉中 · 等待選擇</span>
+        <div style="flex:1"></div>
+        <button class="pxbtn sk" id="map-back-btn" onclick="goToGarage()" style="font-size:10px">↩ 返回車庫</button>
+      </div>
     </div>
-    <div class="panel bolts log-panel">
+    <div class="panel bolts map-side">
       <div class="panel-hdr"><span class="lbl sk">LOGBOOK</span></div>
       <div class="log-body" id="log-body">
         <div style="font-size:15px;color:var(--faint);font-style:italic">// 尚無紀錄 //</div>
-      </div>
-      <div style="padding:10px 14px;border-top:2px solid var(--line);background:var(--bg2)">
-        <button class="pxbtn sk" style="width:100%;font-size:10px" onclick="goToGarage()">↩ 返回車庫</button>
       </div>
     </div>
   </div>
@@ -723,114 +736,269 @@ function getAllowedIds(){
 const mapCanvas=document.getElementById('map-c');
 const mctx=mapCanvas.getContext('2d');
 let mapAnimId=null,mapT=0;
+let mapScene={scroll:0,signRects:[],hovered:-1,picking:null,pickT:0,enterT:0};
 
 function renderMapScreen(){
   document.getElementById('map-stats').textContent=`${runState.callsign}  HULL ${runState.hp}/${runState.maxHp}  廢料 ${runState.scrap}`;
-  document.getElementById('map-sector').textContent='// 進度 '+runState.visited.length;
+  document.getElementById('map-sector').textContent=`// sector ${Math.min(6,runState.visited.length+1)} / 6`;
   renderLog();
+  renderMapProgress();
+  mapScene={scroll:0,signRects:[],hovered:-1,picking:null,pickT:0,enterT:0};
   stopMapAnim();
   const tick=()=>{mapT+=0.016;drawMapCanvas();mapAnimId=requestAnimationFrame(tick);};
   mapAnimId=requestAnimationFrame(tick);
 }
 
+function renderMapProgress(){
+  const el=document.getElementById('map-progress');if(!el)return;
+  let html='<span>SECTOR</span>';
+  for(let c=0;c<6;c++){
+    const done=runState.visited.some(id=>runState.map.cols[c].some(n=>n.id===id));
+    const here=!done&&(runState.visited.length===c||(runState.visited.length===0&&c===0));
+    const cls=done?'done':here?'here':'future';
+    const glyph=c===5?(done?'★':'☆'):done?'●':here?'◉':'○';
+    html+=`<span class="dot ${cls}">${glyph}</span>`;
+  }
+  el.innerHTML=html;
+}
+
 function stopMapAnim(){if(mapAnimId){cancelAnimationFrame(mapAnimId);mapAnimId=null;}}
 
 function drawMapCanvas(){
-  // 同步 canvas buffer 到實際顯示尺寸
+  // 同步 canvas buffer 到顯示尺寸
   const dw=mapCanvas.clientWidth,dh=mapCanvas.clientHeight;
   if(dw>0&&dh>0&&(mapCanvas.width!==dw||mapCanvas.height!==dh)){
     mapCanvas.width=dw; mapCanvas.height=dh;
   }
-  const W=mapCanvas.width||720,H=mapCanvas.height||390;
-  mctx.fillStyle='#0a0604';mctx.fillRect(0,0,W,H);
-  // desert bg
-  const sky=mctx.createLinearGradient(0,0,0,H);
-  sky.addColorStop(0,'#1a0c04');sky.addColorStop(.5,'#2a1408');sky.addColorStop(1,'#1a120c');
-  mctx.fillStyle=sky;mctx.fillRect(0,0,W,H);
-  // grid fade lines
-  for(let i=1;i<6;i++){mctx.strokeStyle=`rgba(74,52,30,0.25)`;mctx.lineWidth=1;mctx.beginPath();mctx.moveTo(W*i/6,0);mctx.lineTo(W*i/6,H);mctx.stroke();}
+  const W=mapCanvas.width||900,H=mapCanvas.height||430;
+  mctx.imageSmoothingEnabled=false;
 
+  // ── world scroll ──
+  mapScene.scroll+=1.6; // constant idle drive
+
+  // ── sky ──
+  const sky=mctx.createLinearGradient(0,0,0,H*.72);
+  sky.addColorStop(0,'#1a0c04');sky.addColorStop(.4,'#3a1a08');sky.addColorStop(.8,'#7a3a12');sky.addColorStop(1,'#c45a1c');
+  mctx.fillStyle=sky;mctx.fillRect(0,0,W,H*.72);
+
+  // ── sun ──
+  mctx.fillStyle='rgba(245,154,58,0.6)';mctx.beginPath();mctx.arc(W*.78,H*.42,38,0,Math.PI*2);mctx.fill();
+  mctx.fillStyle='rgba(232,118,42,0.9)';mctx.beginPath();mctx.arc(W*.78,H*.42,24,0,Math.PI*2);mctx.fill();
+
+  // ── parallax bg ──
+  drawMapMtns(W,H,mapScene.scroll*.3);
+  drawMapMid(W,H,mapScene.scroll*.7);
+
+  // ── ground ──
+  mctx.fillStyle='#1a120c';mctx.fillRect(0,H*.72,W,H*.28);
+  for(let i=0;i<12;i++){
+    const y=H*.72+4+i*8;
+    const off=((mapScene.scroll*(.5+i*.08))%60);
+    mctx.fillStyle=`rgba(184,154,106,${.05+(i/12)*.08})`;
+    for(let x=-off;x<W;x+=60)mctx.fillRect(x,y,30,1);
+  }
+  // road dashes
+  const roadY=Math.floor(H*.82+24);
+  mctx.strokeStyle='rgba(244,225,179,0.18)';mctx.lineWidth=2;
+  mctx.setLineDash([24,18]);
+  mctx.lineDashOffset=-(mapScene.scroll%42);
+  mctx.beginPath();mctx.moveTo(0,roadY);mctx.lineTo(W,roadY);mctx.stroke();
+  mctx.setLineDash([]);
+
+  // ── overhead gantry + signs ──
   const flat=runState.map.cols.flat();
   const allowed=getAllowedIds();
+  const choices=allowed.map(id=>flat.find(n=>n.id===id)).filter(Boolean);
 
-  // edges
-  for(const e of runState.map.edges){
-    const a=flat.find(n=>n.id===e.from),b=flat.find(n=>n.id===e.to);
-    if(!a||!b)continue;
-    const pa=nodePos(a,W,H),pb=nodePos(b,W,H);
-    const isPath=runState.visited.includes(e.from)&&runState.visited.includes(e.to);
-    const isReach=e.from===runState.currentNodeId&&allowed.includes(e.to);
-    const col=isPath?'#e8762a':isReach?'#c45a1c':'#2a1a0e';
-    const alpha=isPath?1:isReach?.8:.5;
-    mctx.strokeStyle=col;mctx.lineWidth=isPath||isReach?2:1;mctx.globalAlpha=alpha;
-    mctx.setLineDash([6,5]);mctx.lineDashOffset=-(mapT*30);
-    mctx.beginPath();mctx.moveTo(pa.x,pa.y);mctx.lineTo(pb.x,pb.y);mctx.stroke();
-    mctx.setLineDash([]);mctx.globalAlpha=1;
-  }
+  mapScene.signRects=[];
+  // entry animation: 0 → 1 over first ~0.6s
+  mapScene.enterT=Math.min(1,mapScene.enterT+0.025);
+  const ease=t=>1-Math.pow(1-t,3);
+  const enter=ease(mapScene.enterT);
 
-  // nodes
-  for(const n of flat){
-    const p=nodePos(n,W,H);
-    const visited=runState.visited.includes(n.id);
-    const isCurrent=runState.currentNodeId===n.id;
-    const reachable=allowed.includes(n.id);
-    const meta=NODE_TYPES[n.type];
-    const sz=n.type==='boss'?52:40;
-    const alpha=visited&&!isCurrent?.35:1;
+  // gantry beam
+  const gantryY=14+(1-enter)*-30;
+  mctx.fillStyle='#3a3a40';mctx.fillRect(0,gantryY,W,4);
+  mctx.fillStyle='#5b5b62';mctx.fillRect(0,gantryY,W,1);
+  // bolts along beam
+  for(let x=14;x<W;x+=46){mctx.fillStyle='#1a0808';mctx.fillRect(x,gantryY+1,2,2);}
+
+  choices.forEach((node,i)=>{
+    const N=choices.length;
+    const xFrac=N===1?0.5:0.22+0.56*(i/(N-1));
+    const cx=Math.round(W*xFrac);
+    const sw=N>=3?116:140, sh=88;
+    const sx=Math.round(cx-sw/2);
+    const sy=Math.round(gantryY+4+(1-enter)*-20);
+
+    const isHovered=mapScene.hovered===i;
+    const isPicking=mapScene.picking===i;
+    let scale=1, alpha=1;
+    if(isPicking){
+      const t=mapScene.pickT;
+      scale=1+t*0.6;
+      alpha=1-t*0.7;
+    }
+
+    mctx.save();
     mctx.globalAlpha=alpha;
-    // box
-    mctx.fillStyle=isCurrent?'#251a11':reachable?'#1a120c':'#14100a';
-    mctx.strokeStyle=isCurrent?'#e8762a':reachable?meta.color:'#2a1a0e';
-    mctx.lineWidth=isCurrent?2.5:reachable?2:1;
-    if(reachable&&!isCurrent){
-      const pulse=0.5+0.5*Math.sin(mapT*3);
-      mctx.shadowColor=meta.color;mctx.shadowBlur=6+pulse*8;
-    }
-    mctx.beginPath();mctx.rect(p.x-sz/2,p.y-sz/2,sz,sz);mctx.fill();mctx.stroke();
-    mctx.shadowBlur=0;
-    // icon
-    const ico=ICONS[n.type];
-    if(ico){const isc=2,iw=ico[0].length*isc,ih=ico.length*isc;drawSprite(mctx,ico,p.x-iw/2,p.y-ih/2,isc);}
-    // current indicator
-    if(isCurrent){mctx.fillStyle='#e8762a';mctx.font='16px VT323,monospace';mctx.textAlign='center';mctx.fillText('▼',p.x,p.y-sz/2-4);}
-    // label
-    mctx.globalAlpha=1;
-    mctx.fillStyle=isCurrent?'#e8762a':reachable?'#f4e1b3':'#6b5638';
-    mctx.font='11px Silkscreen,monospace';mctx.textAlign='center';
-    mctx.fillText(meta.label,p.x,p.y+sz/2+14);
-    // intel（僅可到達或當前節點才顯示）
-    if(reachable||isCurrent){
-      const intel=nodeIntel(n);
-      if(intel){mctx.fillStyle='#6b5638';mctx.font='9px Silkscreen,monospace';mctx.fillText(intel,p.x,p.y+sz/2+26);}
-    }
-  }
-  mctx.globalAlpha=1;
+    // local scale around sign center
+    const csx=cx, csy=sy+sh/2;
+    mctx.translate(csx,csy);mctx.scale(scale,scale);mctx.translate(-csx,-csy);
 
-  // legend
-  mctx.fillStyle='rgba(10,6,4,0.7)';mctx.fillRect(6,6,150,Object.keys(NODE_TYPES).length*16+10);
-  let ly=18;
-  for(const[id,t]of Object.entries(NODE_TYPES)){
-    mctx.fillStyle=t.color;mctx.fillRect(12,ly-8,8,8);
-    mctx.fillStyle='#b89a6a';mctx.font='10px Silkscreen,monospace';mctx.textAlign='left';
-    mctx.fillText(t.label,26,ly);
-    ly+=16;
+    // chains
+    mctx.strokeStyle='#3a3a40';mctx.lineWidth=2;
+    const chainSway=Math.sin(mapT*1.5+i)*0.6;
+    [sx+10,sx+sw-10].forEach((x,idx)=>{
+      mctx.beginPath();
+      mctx.moveTo(x,gantryY+4);
+      mctx.lineTo(x+chainSway*(idx===0?1:-1),sy);
+      mctx.stroke();
+    });
+
+    // sign panel — wooden/metal billboard
+    const meta=NODE_TYPES[node.type];
+    // backplate (drop shadow)
+    mctx.fillStyle='rgba(0,0,0,0.55)';
+    mctx.fillRect(sx+3,sy+3,sw,sh);
+    // body
+    mctx.fillStyle='#1a120c';
+    mctx.fillRect(sx,sy,sw,sh);
+    // top accent stripe (color-coded)
+    mctx.fillStyle=meta.color;
+    mctx.globalAlpha=alpha*(isHovered?1:0.7);
+    mctx.fillRect(sx,sy,sw,4);
+    mctx.globalAlpha=alpha;
+    // border
+    mctx.strokeStyle=isHovered?'#e8762a':'#4a341e';
+    mctx.lineWidth=isHovered?3:2;
+    if(isHovered){mctx.shadowColor=meta.color;mctx.shadowBlur=14;}
+    mctx.strokeRect(sx+0.5,sy+0.5,sw-1,sh-1);
+    mctx.shadowBlur=0;
+
+    // corner bolts
+    mctx.fillStyle='#5b5b62';
+    [[6,8],[sw-9,8],[6,sh-11],[sw-9,sh-11]].forEach(([bx,by])=>{
+      mctx.fillRect(sx+bx,sy+by,3,3);
+      mctx.fillStyle='#1a0808';mctx.fillRect(sx+bx+1,sy+by+1,1,1);
+      mctx.fillStyle='#5b5b62';
+    });
+
+    // icon
+    const ico=ICONS[node.type];
+    if(ico){
+      const isc=N>=3?2:3;
+      const iw=ico[0].length*isc, ih=ico.length*isc;
+      drawSprite(mctx,ico,sx+sw/2-iw/2,sy+14,isc);
+    }
+
+    // label
+    mctx.fillStyle=isHovered?'#e8762a':'#f4e1b3';
+    mctx.font='11px Silkscreen,monospace';mctx.textAlign='center';
+    mctx.fillText(meta.label,sx+sw/2,sy+sh-22);
+
+    // intel
+    const intel=nodeIntel(node);
+    if(intel){
+      mctx.fillStyle='#8a7146';
+      mctx.font='12px VT323,monospace';
+      mctx.fillText(intel,sx+sw/2,sy+sh-8);
+    }else{
+      // tag for scrap/event
+      mctx.fillStyle='#8a7146';mctx.font='12px VT323,monospace';
+      const tag=node.type==='scrap'?'修理 / 升級':node.type==='event'?'路上奇遇':'';
+      if(tag)mctx.fillText(tag,sx+sw/2,sy+sh-8);
+    }
+
+    mctx.restore();
+
+    // hit rect in canvas coords (pre-scale)
+    if(!isPicking)mapScene.signRects.push({x:sx,y:sy,w:sw,h:sh,index:i,node});
+  });
+
+  // ── player car (centered) ──
+  const baseY=Math.floor(H*.82)-4;
+  const playerX=Math.floor(W*0.5);
+  const jit=(Math.sin(mapT*18)*1)|0;
+  const cfg=CAR[runState.chassis]||CAR.runner;
+  const hw=carPxW(runState.chassis)/2;
+
+  // shadow under car
+  mctx.fillStyle='rgba(0,0,0,0.45)';
+  mctx.fillRect(playerX-hw+3*3,baseY-40+(cfg.top+cfg.bh+5)*3,(cfg.len-4)*3,2*3);
+
+  drawCar(mctx,Math.floor(playerX-hw),Math.floor(baseY-40+jit),3,runState.chassis,0);
+
+  // speed lines when "cruising"
+  mctx.strokeStyle='rgba(232,118,42,0.22)';mctx.lineWidth=1;
+  for(let i=0;i<5;i++){
+    const y=baseY-28+(i-2)*5;
+    const len=24+Math.random()*16;
+    mctx.beginPath();mctx.moveTo(playerX-hw-6,y);mctx.lineTo(playerX-hw-6-len,y);mctx.stroke();
   }
+
+  // callsign tag under car
+  mctx.fillStyle='#e8762a';mctx.font='10px Silkscreen,monospace';mctx.textAlign='center';
+  mctx.fillText(runState.callsign,playerX,baseY+22);
+
+  // ── picking animation ──
+  if(mapScene.picking!==null){
+    mapScene.pickT+=0.05;
+    if(mapScene.pickT>=1){
+      const choice=choices[mapScene.picking];
+      mapScene.picking=null;mapScene.pickT=0;
+      if(choice)pickNode(choice);
+    }
+  }
+
+  // ── vignette ──
+  const vg=mctx.createRadialGradient(W/2,H/2,H*.4,W/2,H/2,H*.85);
+  vg.addColorStop(0,'rgba(0,0,0,0)');
+  vg.addColorStop(1,'rgba(0,0,0,0.5)');
+  mctx.fillStyle=vg;mctx.fillRect(0,0,W,H);
 }
 
-// click on map canvas
-mapCanvas.addEventListener('click',e=>{
-  if(!runState)return;
+function drawMapMtns(W,H,scroll){
+  mctx.fillStyle='#2a1408';const by=H*.62,off=scroll%200;
+  mctx.beginPath();mctx.moveTo(-off-100,by);
+  for(let x=-off-100,i=0;x<W+200;x+=50,i++){const h=30+((i*37)%50);mctx.lineTo(x+25,by-h);mctx.lineTo(x+50,by);}
+  mctx.lineTo(W+200,H*.72);mctx.lineTo(-100,H*.72);mctx.closePath();mctx.fill();
+}
+function drawMapMid(W,H,scroll){
+  mctx.fillStyle='#1a0c04';const by=H*.72,off=scroll%400;
+  [{x:80,w:30,h:14},{x:240,w:18,h:8},{x:380,w:40,h:20},{x:520,w:22,h:10},{x:700,w:34,h:16},{x:860,w:16,h:6}].forEach(wr=>{
+    const x=((wr.x-off)%(W+400)+W+400)%(W+400)-100;
+    mctx.fillRect(x,by-wr.h,wr.w,wr.h);
+    mctx.fillRect(x+Math.floor(wr.w/2),by-wr.h-4,1,4);
+  });
+}
+
+// hover detection
+mapCanvas.addEventListener('mousemove',e=>{
+  if(!runState||mapScene.picking!==null)return;
   const rect=mapCanvas.getBoundingClientRect();
   const scx=mapCanvas.width/rect.width,scy=mapCanvas.height/rect.height;
   const cx=(e.clientX-rect.left)*scx,cy=(e.clientY-rect.top)*scy;
-  const W=mapCanvas.width,H=mapCanvas.height;
-  const flat=runState.map.cols.flat();
-  const allowed=getAllowedIds();
-  for(const n of flat){
-    const p=nodePos(n,W,H);
-    const sz=n.type==='boss'?26:20;
-    if(allowed.includes(n.id)&&Math.abs(cx-p.x)<sz&&Math.abs(cy-p.y)<sz){
-      pickNode(n);return;
+  let hit=-1;
+  for(const r of mapScene.signRects){
+    if(cx>=r.x&&cx<=r.x+r.w&&cy>=r.y&&cy<=r.y+r.h){hit=r.index;break;}
+  }
+  mapScene.hovered=hit;
+  mapCanvas.style.cursor=hit>=0?'pointer':'default';
+});
+mapCanvas.addEventListener('mouseleave',()=>{mapScene.hovered=-1;mapCanvas.style.cursor='default';});
+
+// click on map canvas — pick sign
+mapCanvas.addEventListener('click',e=>{
+  if(!runState||mapScene.picking!==null)return;
+  const rect=mapCanvas.getBoundingClientRect();
+  const scx=mapCanvas.width/rect.width,scy=mapCanvas.height/rect.height;
+  const cx=(e.clientX-rect.left)*scx,cy=(e.clientY-rect.top)*scy;
+  for(const r of mapScene.signRects){
+    if(cx>=r.x&&cx<=r.x+r.w&&cy>=r.y&&cy<=r.y+r.h){
+      mapScene.picking=r.index;mapScene.pickT=0;
+      mapScene.hovered=-1;mapCanvas.style.cursor='default';
+      return;
     }
   }
 });
@@ -969,6 +1137,7 @@ let lastTime=0,combatAnimId=null;
 let pendingNodeType=null;
 let combatPaused=false,combatSimSpeed=1;
 let combatPSX=220,combatESX=680;
+let playerVisX=-1,enemyVisX=-1;
 let playerZone=3,enemyZone=3,roundTimer=0,zoneSelectActive=false,playerAccel=1;
 
 const TERRAIN=Array.from({length:22},(_,i)=>({
@@ -999,6 +1168,7 @@ function startCombat(nodeType,eDef){
   gap=450;phase='combat';elapsed=0;
   combatLog=[`// ${player.name} vs ${enemy.name}`];
   worldX=0;bgScroll=0;floaters=[];tracers=[];particles=[];
+  playerVisX=-1;enemyVisX=-1;
   playerAccel=ENGINE_ACCEL[build.engine]||1;
   playerZone=3;
   enemyZone=(nodeType==='fight')?2:4;
@@ -1111,12 +1281,26 @@ function drawCombat(){
   drawMtns();drawMid();
   ctx.fillStyle='#1a120c';ctx.fillRect(0,H*.72,W,H*.28);
   for(let i=0;i<12;i++){const y=H*.72+4+i*8,off=((worldX*(.5+i*.08))%60);ctx.fillStyle=`rgba(184,154,106,${.05+(i/12)*.08})`;for(let x=-off;x<W;x+=60)ctx.fillRect(x,y,30,1);}
-  const roadY=H*.82+26;
-  ctx.strokeStyle='rgba(244,225,179,0.18)';ctx.lineWidth=2;ctx.setLineDash([24,18]);ctx.lineDashOffset=-(worldX%42);
-  ctx.beginPath();ctx.moveTo(0,roadY);ctx.lineTo(W,roadY);ctx.stroke();ctx.setLineDash([]);
+  const roadTop=Math.floor(H*.72);
   const baseY=Math.floor(H*.82)-4;
-  const eSX=W-220;
-  const pSX=Math.max(60,eSX-gap*SCALE);
+  // ── Zone lanes ──────────────────────────────────────────────────────────
+  const zoneW=W/5;
+  for(let z=1;z<=5;z++){
+    const zx=(z-1)*zoneW;
+    if(z%2===0){ctx.fillStyle='rgba(255,255,255,0.025)';ctx.fillRect(zx,roadTop,zoneW,H-roadTop);}
+    if(z>1){ctx.strokeStyle='rgba(184,154,106,0.18)';ctx.lineWidth=1;ctx.setLineDash([4,10]);ctx.beginPath();ctx.moveTo(zx,roadTop);ctx.lineTo(zx,H);ctx.stroke();ctx.setLineDash([]);}
+    ctx.fillStyle=`rgba(184,154,106,${z===playerZone||z===enemyZone?0.7:0.28})`;
+    ctx.font='9px Silkscreen,monospace';ctx.textAlign='center';
+    ctx.fillText(`Z${z}`,zx+zoneW/2,roadTop+13);
+  }
+  // zone-based vehicle X positions with lerp
+  let tPSX=W*(2*playerZone-1)/10;
+  let tESX=W*(2*enemyZone-1)/10;
+  if(playerZone===enemyZone){tPSX-=28;tESX+=28;}
+  if(playerVisX<0){playerVisX=tPSX;enemyVisX=tESX;}
+  else{playerVisX=lerp(playerVisX,tPSX,0.025);enemyVisX=lerp(enemyVisX,tESX,0.025);}
+  const pSX=Math.round(playerVisX);
+  const eSX=Math.round(enemyVisX);
   combatPSX=pSX; combatESX=eSX;
   for(const t of tracers){const x1=t.fromPlayer?pSX+carPxW(player.kind)/2:eSX-carPxW(enemy.kind)/2,x2=t.fromPlayer?eSX:pSX;ctx.strokeStyle=t.color;ctx.lineWidth=t.thick;ctx.beginPath();ctx.moveTo(x1,baseY-30);ctx.lineTo(x2,baseY-30);ctx.stroke();}
   drawV(pSX,baseY,player,true);drawV(eSX,baseY,enemy,false);
