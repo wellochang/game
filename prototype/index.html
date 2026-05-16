@@ -1142,6 +1142,7 @@ const INTRO_DURATION=2;
 let playerZone=3,enemyZone=3,roundTimer=0,zoneSelectActive=false,playerAccel=1;
 let playerZoneStart=3,playerZoneTarget=3,enemyZoneStart=3,enemyZoneTarget=3;
 let roundTick=0,tickAccum=0;
+let zoneInstant=false;
 
 function transitZone(start,target,tick){
   const zones=Math.abs(target-start)+1;
@@ -1213,7 +1214,7 @@ function startCombat(nodeType,eDef){
     if(phase==='intro'){
       introTimer+=rawDt;
       bgScroll+=rawDt*96;worldX+=rawDt*96;
-      if(introTimer>=INTRO_DURATION)phase='combat';
+      if(introTimer>=INTRO_DURATION){phase='combat';zoneInstant=true;triggerZoneSelect();}
     } else if(phase==='end-win'){
       playerZone=3; // lerp target → Z3
     } else {
@@ -1503,7 +1504,13 @@ function confirmZone(z){
   enemyZoneStart=transitZone(enemyZoneStart,enemyZoneTarget,roundTick);
   enemyZoneTarget=enemyZone;
   roundTick=0;tickAccum=0;roundTimer=0;
-  playerZone=playerZoneStart; enemyZone=enemyZoneStart;
+  if(zoneInstant){
+    playerZone=playerZoneStart=playerZoneTarget=finalZone;
+    enemyZone=enemyZoneStart=enemyZoneTarget;
+    zoneInstant=false;
+  } else {
+    playerZone=playerZoneStart; enemyZone=enemyZoneStart;
+  }
   player.spd=ZONE_SPDS[playerZone-1];
   enemy.spd=ZONE_SPDS[enemyZone-1];
   document.getElementById('zone-select').style.display='none';
