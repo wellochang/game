@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>廢土衝鋒 — v0.9.0</title>
+<title>廢土衝鋒 — v0.10.0</title>
 <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -305,6 +305,12 @@ button{font-family:inherit;color:inherit;cursor:pointer}
   </div>
 </div>
 
+<!-- ═══ REWARD MODAL ═══ -->
+<div id="reward-modal" style="display:none;position:fixed;inset:0;background:rgba(10,6,4,0.92);z-index:9999;flex-direction:column;align-items:center;justify-content:center;gap:18px">
+  <div class="sk" style="font-size:14px;color:var(--bright);letter-spacing:3px">// 戰利品 — 選擇一項</div>
+  <div id="reward-cards" style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;max-width:760px"></div>
+</div>
+
 <!-- ═══ END OVERLAY ═══ -->
 <div id="ov">
   <h2 id="ot" class="sk"></h2>
@@ -349,7 +355,8 @@ const ICONS={
   elite: ["....dd......","...dbbd.....","..dbBBbd....","...dbBbd....","....dbbd....","......d.....","...dbbbd....","..dbBBBbd...","...dbbbd....","....dd......","............","............"],
   scrap: ["............","...MmmmmM...","..MmLLLLmM..",".MmL7777LmM.","MmL77WW77LmM","MmL777777LmM",".MmL7777LmM.","..MmLLLLmM...","...MmmmmM...","............","............","............"],
   event: ["....8888....","...8oooo8...","..8oo88oo8..",".8o8....8o8.",".8o8....8o8.","....8o8.....","...8o8......","...8o8......","...8o8......","............","...8o8......","............"],
-  boss:  ["...kkkkkk...","..kRRRRRRk..","kRbBBBBbRk","kRbBddddBbRk","kRbBdOOdBbRk","kRbBdooBdBRk","kRbBdOOdBbRk","kRbBBddBBbRk",".kRbBBBBbRk.","..kRRRRRRk..","...kkkkkk...","............"],
+  boss:   ["...kkkkkk...","..kRRRRRRk..","kRbBBBBbRk","kRbBddddBbRk","kRbBdOOdBbRk","kRbBdooBdBRk","kRbBdOOdBbRk","kRbBBddBBbRk",".kRbBBBBbRk.","..kRRRRRRk..","...kkkkkk...","............"],
+  upgrade:["............","....8888....","...888888...","..88WWWW88..","..88W88W88..","..88WWWW88..","..88W88W88..","..88WWWW88..","...888888...","....8888....","............","............"],
 };
 
 const CAR={
@@ -408,6 +415,50 @@ const ARMORS=[
   {id:'scrap',  name:'Scrap',  s:{ARM:2,HP: 0},desc:'焊上去的廢車門。'},
   {id:'ceramic',name:'Ceramic',s:{ARM:3,HP:-2},desc:'脆弱，但能擋大砲。'},
 ];
+const UPGRADE_CARDS=[
+  // wpn-new: 獲得新武器
+  {id:'new_flamer',    kind:'wpn-new',wpnId:'flamer',    title:'獲得 Flamer',    desc:'短距 AoE 燃燒武器（Z0 射程）',
+   apply:rs=>{if(!rs.extraWeapons.includes('flamer')&&!build.weapons.includes('flamer'))rs.extraWeapons.push('flamer');}},
+  {id:'new_harpoon',   kind:'wpn-new',wpnId:'harpoon',   title:'獲得 Harpoon',   desc:'命中後拉近目標 14px',
+   apply:rs=>{if(!rs.extraWeapons.includes('harpoon')&&!build.weapons.includes('harpoon'))rs.extraWeapons.push('harpoon');}},
+  {id:'new_autocannon',kind:'wpn-new',wpnId:'autocannon',title:'獲得 Autocannon',desc:'中距高射速主砲（Z2 射程）',
+   apply:rs=>{if(!rs.extraWeapons.includes('autocannon')&&!build.weapons.includes('autocannon'))rs.extraWeapons.push('autocannon');}},
+  {id:'new_mortar',    kind:'wpn-new',wpnId:'mortar',    title:'獲得 Mortar',    desc:'遠距 AoE 砲兵（Z3 射程）',
+   apply:rs=>{if(!rs.extraWeapons.includes('mortar')&&!build.weapons.includes('mortar'))rs.extraWeapons.push('mortar');}},
+  // wpn-buff: 現有武器強化
+  {id:'buff_flamer_dmg', kind:'wpn-buff',wpnId:'flamer',    title:'Flamer +2 DMG',     desc:'Flamer 每目標傷害 +2',
+   apply:rs=>{(rs.weaponMods.flamer=rs.weaponMods.flamer||{}).dmg=(rs.weaponMods.flamer.dmg||0)+2;}},
+  {id:'buff_harpoon_dmg',kind:'wpn-buff',wpnId:'harpoon',   title:'Harpoon +3 DMG',    desc:'Harpoon 傷害 +3',
+   apply:rs=>{(rs.weaponMods.harpoon=rs.weaponMods.harpoon||{}).dmg=(rs.weaponMods.harpoon.dmg||0)+3;}},
+  {id:'buff_auto_dmg',   kind:'wpn-buff',wpnId:'autocannon',title:'Autocannon +3 DMG', desc:'Autocannon 傷害 +3',
+   apply:rs=>{(rs.weaponMods.autocannon=rs.weaponMods.autocannon||{}).dmg=(rs.weaponMods.autocannon.dmg||0)+3;}},
+  {id:'buff_auto_cd',    kind:'wpn-buff',wpnId:'autocannon',title:'Autocannon 速射',   desc:'Autocannon CD −0.2s',
+   apply:rs=>{(rs.weaponMods.autocannon=rs.weaponMods.autocannon||{}).cd=(rs.weaponMods.autocannon.cd||0)-0.2;}},
+  {id:'buff_mortar_dmg', kind:'wpn-buff',wpnId:'mortar',    title:'Mortar +5 DMG',     desc:'Mortar 每目標傷害 +5',
+   apply:rs=>{(rs.weaponMods.mortar=rs.weaponMods.mortar||{}).dmg=(rs.weaponMods.mortar.dmg||0)+5;}},
+  // stat-buff: 車體強化
+  {id:'stat_hp',    kind:'stat-buff',title:'+20 MAX HP',   desc:'車體強化 +20 最大 HP',
+   apply:rs=>{rs.bonusHp=(rs.bonusHp||0)+20;rs.maxHp+=20;rs.hp=Math.min(rs.maxHp,rs.hp+20);}},
+  {id:'stat_arm',   kind:'stat-buff',title:'+1 ARM',        desc:'裝甲強化 +1 護甲',
+   apply:rs=>{rs.bonusArm=(rs.bonusArm||0)+1;}},
+  {id:'stat_fuel',  kind:'stat-buff',title:'+3 FUEL 上限',  desc:'燃料桶改裝 +3 FUEL',
+   apply:rs=>{rs.bonusFuelMax=(rs.bonusFuelMax||0)+3;rs.fuel+=3;}},
+  {id:'stat_repair',kind:'stat-buff',title:'緊急修復',      desc:'立即回復 15 HP',
+   apply:rs=>{rs.hp=Math.min(rs.maxHp,rs.hp+15);}},
+];
+function rollUpgradeCards(){
+  const owned=[...build.weapons,...(runState?.extraWeapons||[])];
+  const newPool=UPGRADE_CARDS.filter(c=>c.kind==='wpn-new'&&!owned.includes(c.wpnId));
+  const buffPool=UPGRADE_CARDS.filter(c=>c.kind==='wpn-buff'&&owned.includes(c.wpnId));
+  const statPool=UPGRADE_CARDS.filter(c=>c.kind==='stat-buff');
+  const rand=a=>a[Math.floor(Math.random()*a.length)];
+  return[
+    newPool.length?rand(newPool):rand(statPool),
+    buffPool.length?rand(buffPool):rand(statPool),
+    rand(statPool),
+  ];
+}
+
 const TABS=[
   {id:'chassis',label:'CHASSIS',opts:CHASSIS},
   {id:'weapon', label:'WEAPON', opts:WEAPONS,builder:true},
@@ -641,6 +692,7 @@ function startRun(){
     hp,maxHp:hp,scrap:3,fuel,
     callsign:build.callsign,
     chassis:build.chassis,weapon:build.weapon,engine:build.engine,armor:build.armor,
+    extraWeapons:[],weaponMods:{},bonusHp:0,bonusArm:0,bonusFuelMax:0,
     currentNodeId:null,visited:[],log:[],
     map:generateMap(Math.floor(Math.random()*9999)+1),
   };
@@ -667,11 +719,12 @@ function goToGarage(){backToGarage();}
 // ═══════════════════════════════════════════════
 
 const NODE_TYPES={
-  fight:{label:'RAIDERS',  color:'#a4232a'},
-  elite:{label:'WARLORD',  color:'#e8762a'},
-  scrap:{label:'SCRAPYARD',color:'#e9d7a5'},
-  event:{label:'WANDERER', color:'#b6c43a'},
-  boss: {label:'OIL BARON',color:'#d83a30'},
+  fight:  {label:'RAIDERS',  color:'#a4232a'},
+  elite:  {label:'WARLORD',  color:'#e8762a'},
+  scrap:  {label:'SCRAPYARD',color:'#e9d7a5'},
+  event:  {label:'WANDERER', color:'#b6c43a'},
+  boss:   {label:'OIL BARON',color:'#d83a30'},
+  upgrade:{label:'CACHE',    color:'#7ad4ff'},
 };
 
 function generateMap(seed){
@@ -694,6 +747,10 @@ function generateMap(seed){
     }
     cols.push(nodes);
   }
+  // 每張地圖在 col 2-4 中注入一個 upgrade 節點
+  const upgCands=cols.slice(2,5).flat().filter(n=>n.type!=='boss'&&n.type!=='elite');
+  if(upgCands.length){upgCands[Math.floor(rand()*upgCands.length)].type='upgrade';}
+
   const edges=[];
   for(let c=0;c<COLS-1;c++){
     for(const n of cols[c]){
@@ -726,6 +783,7 @@ function nodeEnemyDef(node){
 }
 
 function nodeIntel(node){
+  if(node.type==='upgrade')return'CACHE';
   const e=nodeEnemyDef(node);
   if(!e)return null;
   if(node.type==='fight') return`射程 ${e.wRange}`;
@@ -1020,6 +1078,9 @@ function pickNode(node){
   if(node.type==='fight'||node.type==='elite'||node.type==='boss'){
     stopMapAnim();
     startCombat(node.type,nodeEnemyDef(node));
+  }else if(node.type==='upgrade'){
+    stopMapAnim();
+    showRewardModal(rollUpgradeCards(),()=>{goScreen('map');renderMapScreen();});
   }else if(node.type==='scrap'){
     stopMapAnim();
     goScreen('scrap');
@@ -1202,13 +1263,16 @@ function startCombat(nodeType,eDef){
   pendingNodeType=nodeType;
   const{ch,wps,en,ar}=getBuild();
   const totalHp=runState.hp;
-  const totalArm=ch.s.ARM+ar.s.ARM;
+  const totalArm=ch.s.ARM+ar.s.ARM+(runState.bonusArm||0);
   const totalMov=ch.s.MOV+en.s.MOV;
   const pSpd=1.2+totalMov*0.35;
+  const mods=runState.weaponMods||{};
+  const allWpnIds=[...build.weapons,...(runState.extraWeapons||[])];
+  const allWps=allWpnIds.map(id=>WEAPONS.find(o=>o.id===id)).filter(Boolean);
 
   player={isPlayer:true,name:runState.callsign,kind:runState.chassis,color:'#e8762a',
     hp:totalHp,maxHp:runState.maxHp,spd:pSpd,maxSpd:pSpd,arm:totalArm,
-    weapons:wps.map(wp=>({...wp,timer:0})),
+    weapons:allWps.map(wp=>{const m=mods[wp.id]||{};return{...wp,timer:0,dmg:wp.dmg+(m.dmg||0),cd:Math.max(0.1,wp.cd+(m.cd||0))};},),
     flash:0,burn:0,burnT:0,dmgOut:0,dmgIn:0,hits:0};
 
   const eCol=pendingNode?pendingNode.col:0;
@@ -1235,7 +1299,7 @@ function startCombat(nodeType,eDef){
   document.getElementById('enc-cs').textContent=runState.callsign;
   document.getElementById('cs-pname').textContent='YOU — '+runState.callsign;
   document.getElementById('cs-ename').textContent='HOSTILE — '+enemies.map(e=>e.name).join('/');
-  document.getElementById('cs-extra').innerHTML=`ARM <em>${totalArm}</em>  WPN <em>${build.weapons.join('+')}</em>`;
+  document.getElementById('cs-extra').innerHTML=`ARM <em>${totalArm}</em>  WPN <em>${allWpnIds.join('+')}</em>`;
   // 重置控制狀態
   combatPaused=false;combatSimSpeed=1;
   setSimSpeed(1);
@@ -1644,7 +1708,7 @@ function endCombat(win){
       setTimeout(()=>{
         if(combatAnimId){cancelAnimationFrame(combatAnimId);combatAnimId=null;}
         phase='end';
-        goScreen('map');renderMapScreen();
+        showRewardModal(rollUpgradeCards(),()=>{goScreen('map');renderMapScreen();});
       },1200);
     }
   }else{
@@ -1653,6 +1717,29 @@ function endCombat(win){
     runState.hp=0;runState.log.push(`在交戰中報廢。`);
     showEnd(false);
   }
+}
+
+function showRewardModal(cards,onDone){
+  const modal=document.getElementById('reward-modal');
+  const container=document.getElementById('reward-cards');
+  container.innerHTML='';
+  cards.forEach(card=>{
+    const el=document.createElement('div');
+    el.className='part-card';
+    el.style.cssText='cursor:pointer;min-width:170px;max-width:210px;border:1px solid var(--dim);padding:14px 12px;background:var(--bg)';
+    el.innerHTML=`<div style="font-size:13px;color:var(--bright);margin-bottom:6px;font-family:Silkscreen,monospace">${card.title}</div>`
+      +`<div style="font-size:11px;color:var(--ink);line-height:1.4">${card.desc}</div>`
+      +`<div style="font-size:9px;color:var(--dim);margin-top:8px;letter-spacing:1px">[${card.kind}]</div>`;
+    el.onmouseenter=()=>el.style.borderColor='var(--bright)';
+    el.onmouseleave=()=>el.style.borderColor='var(--dim)';
+    el.onclick=()=>{
+      card.apply(runState);
+      modal.style.display='none';
+      if(onDone)onDone();
+    };
+    container.appendChild(el);
+  });
+  modal.style.display='flex';
 }
 
 function showEnd(win){
