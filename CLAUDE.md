@@ -7,6 +7,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **`prototype/index.html`**（`http://localhost:8766`）是目前唯一活躍開發的版本。
 `design_demo.html` + `src/*.jsx` 是 React 設計稿參考，不做功能迭代。
 
+## 版本號規則（prototype/index.html 標題）
+
+版號格式：`x.y.z`，維護在 `prototype/index.html` 的 `<title>` 標籤與遊戲標題顯示中。
+
+| 變更類型 | 進版規則 |
+|----------|----------|
+| Design branch 合併（視覺／UI 大改） | x+1，y=0，z=0 |
+| Feature（新功能、新機制） | y+1，z=0 |
+| Bug fix（修正錯誤） | z+1 |
+
+- 每次 commit 前，根據本次變更類型更新版號
+- 高位版號進版時，低位一律歸零（e.g. 1.3.2 新增 feature → 1.4.0）
+
 ## 回覆規則
 
 - 直接給結果，不要前言、不要總結
