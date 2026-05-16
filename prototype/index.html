@@ -384,10 +384,10 @@ const CHASSIS=[
   {id:'hauler',name:'Hauler',capacity:16, slots:3, s:{HP:28,MOV:2,ARM:2},desc:'重裝坦克。骨板焊死，耐打。'},
 ];
 const WEAPONS=[
-  {id:'flamer',    name:'Flamer',     weight:1,s:{DMG:2,RNG:2},desc:'短距，持續燃燒 3s。',    range:160,cd:0.5,dmg:7, burn:true},
-  {id:'harpoon',   name:'Harpoon',    weight:2,s:{DMG:3,RNG:4},desc:'命中後將目標拉近 14px。',range:320,cd:1.5,dmg:10,pull:true},
-  {id:'autocannon',name:'Autocannon', weight:3,s:{DMG:4,RNG:5},desc:'直線飛行，高射速主力砲。',range:400,cd:0.9,dmg:14},
-  {id:'mortar',    name:'Mortar',     weight:5,s:{DMG:5,RNG:7},desc:'弧線飛行，射程最遠。',    range:560,cd:2.6,dmg:22},
+  {id:'flamer',    name:'Flamer',     weight:1,s:{DMG:2,RNG:2},desc:'短距，持續燃燒 3s。',    range:160,zoneRange:0,cd:0.5,dmg:7, burn:true},
+  {id:'harpoon',   name:'Harpoon',    weight:2,s:{DMG:3,RNG:4},desc:'命中後將目標拉近 14px。',range:320,zoneRange:1,cd:1.5,dmg:10,pull:true},
+  {id:'autocannon',name:'Autocannon', weight:3,s:{DMG:4,RNG:5},desc:'直線飛行，高射速主力砲。',range:400,zoneRange:2,cd:0.9,dmg:14},
+  {id:'mortar',    name:'Mortar',     weight:5,s:{DMG:5,RNG:7},desc:'弧線飛行，射程最遠。',    range:560,zoneRange:3,cd:2.6,dmg:22},
 ];
 const ENGINES=[
   {id:'diesel',name:'Diesel',s:{MOV:0,FUEL:12},desc:'穩定，便宜。'},
@@ -504,7 +504,7 @@ function renderWeaponBuilder(content){
       el.innerHTML=`
         <div class="part-preview" style="height:auto;width:32px;flex-shrink:0"><canvas style="image-rendering:pixelated"></canvas></div>
         <span style="font-size:12px;color:var(--bright);font-family:Silkscreen,monospace;flex:1">${w.name.toUpperCase()}</span>
-        <span style="font-size:11px;color:var(--dim)">重${w.weight} 射${w.range} 傷${w.dmg} CD${w.cd}s</span>
+        <span style="font-size:11px;color:var(--dim)">重${w.weight} 射Z${w.zoneRange} 傷${w.dmg} CD${w.cd}s</span>
         <span style="font-size:12px;color:var(--blood);padding-left:4px">✕</span>`;
       const pc=el.querySelector('canvas');
       const sp=WPS[wid];if(sp){pc.width=sp[0].length*3;pc.height=sp.length*3;const c=pc.getContext('2d');c.imageSmoothingEnabled=false;drawSprite(c,sp,0,0,3);}
@@ -526,7 +526,7 @@ function renderWeaponBuilder(content){
       <span style="font-size:10px;background:var(--bg2);border:1px solid var(--line);color:var(--bright);padding:2px 5px;min-width:30px;text-align:center;font-family:Silkscreen,monospace">重${w.weight}</span>
       <div class="part-preview" style="height:auto;width:32px;flex-shrink:0"><canvas style="image-rendering:pixelated"></canvas></div>
       <span style="font-size:12px;color:var(--bright);font-family:Silkscreen,monospace;flex:1">${w.name.toUpperCase()}</span>
-      <span style="font-size:11px;color:var(--dim)">射${w.range} 傷${w.dmg} DPS ${dps}</span>`;
+      <span style="font-size:11px;color:var(--dim)">射Z${w.zoneRange} 傷${w.dmg} DPS ${dps}</span>`;
     const pc=el.querySelector('canvas');
     const sp=WPS[w.id];if(sp){pc.width=sp[0].length*3;pc.height=sp.length*3;const c=pc.getContext('2d');c.imageSmoothingEnabled=false;drawSprite(c,sp,0,0,3);}
     if(canAdd)el.onclick=()=>{build.weapons.push(w.id);renderGarage();};
@@ -580,16 +580,16 @@ function renderLoadoutStrip(){
     const sp=WPS[wid];if(sp){const pc=document.createElement('canvas');pc.style.imageRendering='pixelated';pc.width=sp[0].length*2;pc.height=sp.length*2;const ctx=pc.getContext('2d');ctx.imageSmoothingEnabled=false;drawSprite(ctx,sp,0,0,2);chip.appendChild(pc);}
     const efx=(w.burn?'[燃]':'')+(w.pull?'[拉]':'');
     const info=document.createElement('div');info.style.cssText='display:flex;flex-direction:column;gap:1px';
-    info.innerHTML=`<span style="font-size:10px;color:var(--bright);font-family:Silkscreen,monospace">${w.name.toUpperCase()}${efx?'<span style="color:var(--acid);margin-left:3px">'+efx+'</span>':''}</span><span style="font-size:11px;color:var(--dim)">射${w.range} 傷${w.dmg} CD${w.cd}s</span>`;
+    info.innerHTML=`<span style="font-size:10px;color:var(--bright);font-family:Silkscreen,monospace">${w.name.toUpperCase()}${efx?'<span style="color:var(--acid);margin-left:3px">'+efx+'</span>':''}</span><span style="font-size:11px;color:var(--dim)">射Z${w.zoneRange} 傷${w.dmg} CD${w.cd}s</span>`;
     chip.appendChild(info);chips.appendChild(chip);
   });
   strip.appendChild(chips);
 
   const wps=build.weapons.map(id=>WEAPONS.find(w=>w.id===id)).filter(Boolean);
-  const maxRange=wps.length?Math.max(...wps.map(w=>w.range)):0;
+  const maxRange=wps.length?Math.max(...wps.map(w=>w.zoneRange)):0;
   const totalDmg=wps.reduce((s,w)=>s+(w.dmg/w.cd),0);
   const st=document.createElement('div');st.style.cssText='font-size:12px;color:var(--dim);margin-top:6px;padding-top:5px;border-top:1px dashed var(--line)';
-  st.textContent=`最大射程 ${maxRange}px　DPS ${totalDmg.toFixed(1)}`;
+  st.textContent=`最大射程 Z${maxRange}　DPS ${totalDmg.toFixed(1)}`;
   strip.appendChild(st);
 }
 
@@ -1109,23 +1109,23 @@ function renderEvent(){
 
 const ENEMIES={
   fight:[
-    {kind:'raider',  name:'Raider Buggy',hp:50, spd:3.4,arm:0,wRange:280,wCd:1.1,wDmg:11},
-    {kind:'scraprig',name:'Scrap Rig',   hp:70, spd:2.8,arm:1,wRange:250,wCd:1.5,wDmg:14},
-    {kind:'raider',  name:'衝角獵犬',   hp:40, spd:4.2,arm:0,wRange:80, wCd:0.5,wDmg:16},
+    {kind:'raider',  name:'Raider Buggy',hp:50, spd:3.4,arm:0,wRange:280,wZoneRange:1,wCd:1.1,wDmg:11},
+    {kind:'scraprig',name:'Scrap Rig',   hp:70, spd:2.8,arm:1,wRange:250,wZoneRange:1,wCd:1.5,wDmg:14},
+    {kind:'raider',  name:'衝角獵犬',   hp:40, spd:4.2,arm:0,wRange:80, wZoneRange:0,wCd:0.5,wDmg:16},
   ],
   elite:[
-    {kind:'scraprig', name:'精英戰車',  hp:100,spd:3.0,arm:2,wRange:280,wCd:1.0,wDmg:17},
-    {kind:'juggernaut',name:'鐵甲軍閥', hp:80, spd:3.2,arm:2,wRange:200,wCd:0.9,wDmg:15},
-    {kind:'hauler',   name:'廢土砲台', hp:90, spd:2.0,arm:1,wRange:430,wCd:2.0,wDmg:20},
+    {kind:'scraprig', name:'精英戰車',  hp:100,spd:3.0,arm:2,wRange:280,wZoneRange:1,wCd:1.0,wDmg:17},
+    {kind:'juggernaut',name:'鐵甲軍閥', hp:80, spd:3.2,arm:2,wRange:200,wZoneRange:1,wCd:0.9,wDmg:15},
+    {kind:'hauler',   name:'廢土砲台', hp:90, spd:2.0,arm:1,wRange:430,wZoneRange:2,wCd:2.0,wDmg:20},
   ],
   boss:[
-    {kind:'juggernaut',name:'石油男爵',hp:180,spd:2.5,arm:4,wRange:180,wCd:0.7,wDmg:22},
+    {kind:'juggernaut',name:'石油男爵',hp:180,spd:2.5,arm:4,wRange:180,wZoneRange:1,wCd:0.7,wDmg:22},
   ],
 };
 
 const ZONE_SPDS=[0.4,0.8,1.2,1.8,2.6];
 const ENGINE_ACCEL={diesel:1,nitro:2,hybrid:1};
-const ROUND_DURATION=3;
+const ROUND_DURATION=12;
 
 const combatCanvas=document.getElementById('cc');
 const ctx=combatCanvas.getContext('2d');
@@ -1137,8 +1137,18 @@ let lastTime=0,combatAnimId=null;
 let pendingNodeType=null;
 let combatPaused=false,combatSimSpeed=1;
 let combatPSX=220,combatESX=680;
-let playerVisX=-1,enemyVisX=-1;
+let playerVisX=-1,enemyVisX=-1,introTimer=0;
+const INTRO_DURATION=2;
 let playerZone=3,enemyZone=3,roundTimer=0,zoneSelectActive=false,playerAccel=1;
+let playerZoneStart=3,playerZoneTarget=3,enemyZoneStart=3,enemyZoneTarget=3;
+let roundTick=0,tickAccum=0;
+
+function transitZone(start,target,tick){
+  const zones=Math.abs(target-start)+1;
+  const secPerZ=ROUND_DURATION/zones;
+  const step=Math.min(zones-1,Math.floor(tick/secPerZ));
+  return start+step*Math.sign(target-start||1);
+}
 
 const TERRAIN=Array.from({length:22},(_,i)=>({
   wx:i*120+Math.random()*70,y:4+Math.random()*22,
@@ -1162,20 +1172,24 @@ function startCombat(nodeType,eDef){
   if(!eDef){const pool=ENEMIES[nodeType]||ENEMIES.fight;eDef=pool[Math.floor(Math.random()*pool.length)];}
   enemy={isPlayer:false,name:eDef.name,kind:eDef.kind,color:'#d83a30',
     hp:eDef.hp,maxHp:eDef.hp,spd:eDef.spd,maxSpd:eDef.spd,arm:eDef.arm,
-    weapons:[{id:'gun',name:'步槍',range:eDef.wRange,cd:eDef.wCd,dmg:eDef.wDmg,timer:0}],
+    weapons:[{id:'gun',name:'步槍',range:eDef.wRange,zoneRange:eDef.wZoneRange??1,cd:eDef.wCd,dmg:eDef.wDmg,timer:0}],
     flash:0,burn:0,burnT:0,dmgOut:0,dmgIn:0,hits:0};
 
-  gap=450;phase='combat';elapsed=0;
+  gap=450;phase='intro';elapsed=0;introTimer=0;
   combatLog=[`// ${player.name} vs ${enemy.name}`];
   worldX=0;bgScroll=0;floaters=[];tracers=[];particles=[];
-  playerVisX=-1;enemyVisX=-1;
   playerAccel=ENGINE_ACCEL[build.engine]||1;
-  playerZone=3;
-  enemyZone=(nodeType==='fight')?2:4;
+  playerZone=3; enemyZone=(nodeType==='fight')?2:4;
+  playerZoneStart=playerZoneTarget=playerZone;
+  enemyZoneStart=enemyZoneTarget=enemyZone;
+  roundTick=0;tickAccum=0;
   player.spd=ZONE_SPDS[playerZone-1];
   enemy.spd=ZONE_SPDS[enemyZone-1];
-  roundTimer=ROUND_DURATION;
+  roundTimer=0;
   zoneSelectActive=false;
+  // 玩家：直接對齊 Z3；敵方：從螢幕外滑入
+  playerVisX=900*(2*playerZone-1)/10;
+  enemyVisX=enemyZone<=playerZone ? -160 : 900+160; // 左入或右入
 
   goScreen('combat');
   // 更新 header 與 sidebar 初始資訊
@@ -1194,10 +1208,17 @@ function startCombat(nodeType,eDef){
   lastTime=performance.now();
   if(combatAnimId)cancelAnimationFrame(combatAnimId);
   const loop=(now)=>{
-    if(phase!=='combat')return;
+    if(phase!=='combat'&&phase!=='intro'&&phase!=='end-win')return;
     const rawDt=Math.min(0.05,(now-lastTime)/1000);lastTime=now;
-    const dt=(combatPaused||zoneSelectActive)?0:rawDt*combatSimSpeed;
-    if(dt>0)update(dt);
+    if(phase==='intro'){
+      introTimer+=rawDt;
+      if(introTimer>=INTRO_DURATION)phase='combat';
+    } else if(phase==='end-win'){
+      playerZone=3; // lerp target → Z3
+    } else {
+      const dt=(combatPaused||zoneSelectActive)?0:rawDt*combatSimSpeed;
+      if(dt>0)update(dt);
+    }
     drawCombat();
     combatAnimId=requestAnimationFrame(loop);
   };
@@ -1209,18 +1230,30 @@ function lerp(a,b,t){return a+(b-a)*Math.min(1,Math.max(0,t));}
 function update(dt){
   elapsed+=dt;
   tickV(player,dt);tickV(enemy,dt);
+  // tick 累積（每整秒推進一格 zone）
+  tickAccum+=dt;
+  while(tickAccum>=1.0){tickAccum-=1.0;roundTick=Math.min(ROUND_DURATION-1,roundTick+1);}
+  // 計算當前過渡 zone
+  const curPZ=transitZone(playerZoneStart,playerZoneTarget,roundTick);
+  const curEZ=transitZone(enemyZoneStart, enemyZoneTarget, roundTick);
+  playerZone=curPZ; enemyZone=curEZ;
   player.spd=ZONE_SPDS[playerZone-1];
   enemy.spd=ZONE_SPDS[enemyZone-1];
   roundTimer+=dt;
   if(roundTimer>=ROUND_DURATION)triggerZoneSelect();
+  // 武器開火：依 zone 高低排先手
+  const zoneDiff=Math.abs(curPZ-curEZ);
+  const toFire=[];
   for(const w of player.weapons){
     w.timer=Math.max(0,w.timer-dt);
-    if(w.timer<=0&&gap<=w.range)fireWeapon(w,player,enemy);
+    if(w.timer<=0&&zoneDiff<=w.zoneRange)toFire.push({w,src:player,tgt:enemy,zone:curPZ});
   }
   for(const w of enemy.weapons){
     w.timer=Math.max(0,w.timer-dt);
-    if(w.timer<=0&&gap<=w.range)fireWeapon(w,enemy,player);
+    if(w.timer<=0&&zoneDiff<=w.zoneRange)toFire.push({w,src:enemy,tgt:player,zone:curEZ});
   }
+  toFire.sort((a,b)=>b.zone-a.zone||a.w.cd-b.w.cd);
+  for(const{w,src,tgt}of toFire)fireWeapon(w,src,tgt);
   const rel=(player.spd-enemy.spd)*60;
   gap=Math.max(0,Math.min(800,gap-rel*dt));
   worldX+=player.spd*60*dt;bgScroll+=player.spd*60*dt*.25;
@@ -1297,8 +1330,12 @@ function drawCombat(){
   let tPSX=W*(2*playerZone-1)/10;
   let tESX=W*(2*enemyZone-1)/10;
   if(playerZone===enemyZone){tPSX-=28;tESX+=28;}
+  const lerpSpd=phase==='end-win'?0.08:phase==='intro'?0.038:0.025;
   if(playerVisX<0){playerVisX=tPSX;enemyVisX=tESX;}
-  else{playerVisX=lerp(playerVisX,tPSX,0.025);enemyVisX=lerp(enemyVisX,tESX,0.025);}
+  else{
+    playerVisX=phase==='intro'?tPSX:lerp(playerVisX,tPSX,lerpSpd);
+    enemyVisX=lerp(enemyVisX,tESX,lerpSpd);
+  }
   const pSX=Math.round(playerVisX);
   const eSX=Math.round(enemyVisX);
   combatPSX=pSX; combatESX=eSX;
@@ -1333,8 +1370,9 @@ function drawHUD(pSX,eSX,baseY){
   ctx.fillStyle='#664422';ctx.font='9px Silkscreen,monospace';ctx.fillText('GAP',cx,30);
   // 武器狀態（左下小字，每把武器一行）
   ctx.font='10px Silkscreen,monospace';ctx.textAlign='left';
+  const zoneDiff=Math.abs(playerZone-enemyZone);
   player.weapons.forEach((w,i)=>{
-    const inR=gap<=w.range,rdy=w.timer<=0;
+    const inR=zoneDiff<=w.zoneRange,rdy=w.timer<=0;
     ctx.fillStyle=inR?(rdy?'rgba(68,238,136,0.9)':'rgba(255,170,51,0.9)'):'rgba(68,51,34,0.9)';
     ctx.fillText(inR?(rdy?w.name+' READY':w.name+' '+w.timer.toFixed(1)+'s'):w.name+' OOR',8,H-8-i*13);
   });
@@ -1357,7 +1395,7 @@ function updateCombatSidebar(){
   const eSpdPct=enemyZone/5;
   $('cs-esp-fill').style.width=`calc(${eSpdPct*100}% - 2px)`;
   $('cs-esp-txt').textContent=`Z${enemyZone}`;
-  $('cs-edist').textContent=`距離 ${Math.round(gap)} px`;
+  $('cs-edist').textContent=`zone差 ${Math.abs(playerZone-enemyZone)}　tick ${roundTick}/${ROUND_DURATION}`;
   // 戰鬥 log
   const logEl=$('cs-log');
   const html=combatLog.map((l,i)=>`<div style="color:${i===0?'var(--ink)':'var(--dim)'}">${l}</div>`).join('');
@@ -1413,8 +1451,9 @@ function triggerZoneSelect(){
   const maxZ=Math.min(5,playerZone+playerAccel);
   const isHauler=build.chassis==='hauler';
   const isHybrid=build.engine==='hybrid';
-  const wpnInfo=player.weapons.map(w=>w.name+(gap<=w.range?'✓':'(OOR)')).join(' ');
-  const defaultInfo=`gap ${Math.round(gap)}px  敵Z${enemyZone}  ${wpnInfo}`;
+  const curDiff=Math.abs(playerZone-enemyZone);
+  const wpnInfo=player.weapons.map(w=>w.name+(curDiff<=w.zoneRange?'✓':'OOR')).join(' ');
+  const defaultInfo=`我Z${playerZone} 敵Z${enemyZone} 差${curDiff}　${wpnInfo}`;
   infoEl.textContent=defaultInfo;
   for(let z=1;z<=5;z++){
     const inRange=z>=minZ&&z<=maxZ;
@@ -1433,10 +1472,9 @@ function triggerZoneSelect(){
     btn.disabled=!inRange;
     if(inRange){
       btn.onmouseenter=()=>{
-        const delta=(ZONE_SPDS[z-1]-ZONE_SPDS[enemyZone-1])*60*ROUND_DURATION;
-        const pred=Math.max(0,Math.min(800,gap-delta));
-        const hits=player.weapons.filter(w=>pred<=w.range).map(w=>w.name).join(',');
-        infoEl.textContent=`Z${z}: gap→${Math.round(pred)}px${hits?' 射程:'+hits:''}${rollPct?' ⚠'+rollPct+'%':''}`;
+        const predDiff=Math.abs(z-enemyZone);
+        const hits=player.weapons.filter(w=>predDiff<=w.zoneRange).map(w=>w.name).join(',');
+        infoEl.textContent=`Z${z}: 差${predDiff}${hits?' 射程:'+hits:' 無射程'}${rollPct?' ⚠'+rollPct+'%':''}`;
       };
       btn.onmouseleave=()=>infoEl.textContent=defaultInfo;
       btn.onclick=()=>confirmZone(z);
@@ -1456,40 +1494,63 @@ function confirmZone(z){
     addLog(`⚠ 車架失控→Z2`);
     spawnFloat(player,'失控 Z2','#d83a30');
   }
-  playerZone=finalZone;
-  player.spd=ZONE_SPDS[playerZone-1];
+  // 當前過渡位置為新起點
+  playerZoneStart=transitZone(playerZoneStart,playerZoneTarget,roundTick);
+  playerZoneTarget=finalZone;
   enemySelectZone();
+  enemyZoneStart=transitZone(enemyZoneStart,enemyZoneTarget,roundTick);
+  enemyZoneTarget=enemyZone;
+  roundTick=0;tickAccum=0;roundTimer=0;
+  playerZone=playerZoneStart; enemyZone=enemyZoneStart;
+  player.spd=ZONE_SPDS[playerZone-1];
+  enemy.spd=ZONE_SPDS[enemyZone-1];
   document.getElementById('zone-select').style.display='none';
   zoneSelectActive=false;
 }
 
 function enemySelectZone(){
-  const tgt=enemy.weapons[0].range*0.7;
+  const wZR=enemy.weapons[0].zoneRange??1;
   const prev=enemyZone;
-  if(gap>tgt+40&&enemyZone>1)enemyZone--;
-  else if(gap<tgt-40&&enemyZone<5)enemyZone++;
+  const diff=Math.abs(playerZone-enemyZone);
+  if(diff>wZR){
+    // 往玩家 zone 靠近
+    if(enemyZone<playerZone&&enemyZone<5)enemyZone++;
+    else if(enemyZone>playerZone&&enemyZone>1)enemyZone--;
+  } else if(wZR===0&&diff<wZR){
+    // 已過近，想拉開（僅限 zoneRange=0 且想維持距離的情況）
+    // 目前保持不動
+  }
   enemy.spd=ZONE_SPDS[enemyZone-1];
   if(enemyZone!==prev)addLog(`敵方→Z${enemyZone}`);
 }
 
 function endCombat(win){
   if(phase!=='combat')return;
-  phase='end';
-  if(combatAnimId){cancelAnimationFrame(combatAnimId);combatAnimId=null;}
   const rb=document.getElementById('btn-retreat');if(rb)rb.disabled=true;
   if(win){
     const reward=pendingNodeType==='boss'?10:pendingNodeType==='elite'?5:3;
     runState.hp=Math.max(1,Math.floor(player.hp));
     runState.scrap+=reward;
     runState.log.push(`擊敗 ${enemy.name}。+${reward} 廢料。`);
-    if(pendingNodeType==='boss'){showEnd(true);}
-    else{setTimeout(()=>{goScreen('map');renderMapScreen();},1200);}
-    // flash victory briefly
     document.getElementById('ot').textContent=pendingNodeType==='boss'?'石油男爵倒下了':'敵車摧毀';
     document.getElementById('ot').style.color='#e8762a';
     document.getElementById('ostats').innerHTML=`+${reward} 廢料　剩餘 HP ${Math.round(player.hp)}/${runState.maxHp}`;
-    if(pendingNodeType!=='boss'){document.getElementById('ov').style.display='flex';setTimeout(()=>{document.getElementById('ov').style.display='none';},1100);}
+    if(pendingNodeType==='boss'){
+      phase='end';
+      if(combatAnimId){cancelAnimationFrame(combatAnimId);combatAnimId=null;}
+      showEnd(true);
+    } else {
+      phase='end-win'; // 保持 loop 讓玩家車滑回 Z3
+      if(pendingNodeType!=='boss'){document.getElementById('ov').style.display='flex';setTimeout(()=>{document.getElementById('ov').style.display='none';},1100);}
+      setTimeout(()=>{
+        if(combatAnimId){cancelAnimationFrame(combatAnimId);combatAnimId=null;}
+        phase='end';
+        goScreen('map');renderMapScreen();
+      },1200);
+    }
   }else{
+    phase='end';
+    if(combatAnimId){cancelAnimationFrame(combatAnimId);combatAnimId=null;}
     runState.hp=0;runState.log.push(`在 ${enemy.name} 交戰中報廢。`);
     showEnd(false);
   }
