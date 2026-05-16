@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>廢土衝鋒 — v0.5</title>
+<title>廢土衝鋒 — v0.6.0</title>
 <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -1212,6 +1212,7 @@ function startCombat(nodeType,eDef){
     const rawDt=Math.min(0.05,(now-lastTime)/1000);lastTime=now;
     if(phase==='intro'){
       introTimer+=rawDt;
+      bgScroll+=rawDt*96;worldX+=rawDt*96;
       if(introTimer>=INTRO_DURATION)phase='combat';
     } else if(phase==='end-win'){
       playerZone=3; // lerp target → Z3
@@ -1314,6 +1315,7 @@ function drawCombat(){
   drawMtns();drawMid();
   ctx.fillStyle='#1a120c';ctx.fillRect(0,H*.72,W,H*.28);
   for(let i=0;i<12;i++){const y=H*.72+4+i*8,off=((worldX*(.5+i*.08))%60);ctx.fillStyle=`rgba(184,154,106,${.05+(i/12)*.08})`;for(let x=-off;x<W;x+=60)ctx.fillRect(x,y,30,1);}
+  const roadDashY=Math.floor(H*.82+24);ctx.strokeStyle='rgba(244,225,179,0.18)';ctx.lineWidth=2;ctx.setLineDash([24,18]);ctx.lineDashOffset=-(bgScroll%42);ctx.beginPath();ctx.moveTo(0,roadDashY);ctx.lineTo(W,roadDashY);ctx.stroke();ctx.setLineDash([]);
   const roadTop=Math.floor(H*.72);
   const baseY=Math.floor(H*.82)-4;
   // ── Zone lanes ──────────────────────────────────────────────────────────
@@ -1358,7 +1360,7 @@ function drawV(sx,baseY,v,isPlayer){
   ctx.strokeStyle='#0a0604';ctx.lineWidth=1;ctx.strokeRect(bx-.5,by-.5,bw+1,5);
   ctx.fillStyle=v.color;ctx.font='11px Silkscreen,monospace';ctx.textAlign='center';ctx.fillText(v.name,sx,by-4);
   if(v.burn>0){const f=(elapsed*12)%1;ctx.fillStyle=`rgba(232,118,42,${.7-f*.4})`;ctx.fillRect(sx-hw+4,baseY-50-f*6,4,4);}
-  if(isPlayer&&v.spd>2.5){const iv=(v.spd-2.5)/4;ctx.strokeStyle=`rgba(232,118,42,${iv*.45})`;ctx.lineWidth=1;for(let i=0;i<6;i++){const y=baseY-28+(i-3)*5,len=30+iv*50;ctx.beginPath();ctx.moveTo(sx-hw-4,y);ctx.lineTo(sx-hw-4-len,y);ctx.stroke();}}
+  if(isPlayer){ctx.strokeStyle='rgba(232,118,42,0.22)';ctx.lineWidth=1;for(let i=0;i<5;i++){const y=baseY-28+(i-2)*5,len=24+Math.random()*16;ctx.beginPath();ctx.moveTo(sx-hw-6,y);ctx.lineTo(sx-hw-6-len,y);ctx.stroke();}}
 }
 
 function drawHUD(pSX,eSX,baseY){
