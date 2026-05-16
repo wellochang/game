@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>廢土衝鋒 — v0.7.0</title>
+<title>廢土衝鋒 — v0.9.0</title>
 <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -1016,6 +1016,7 @@ mapCanvas.addEventListener('click',e=>{
 function pickNode(node){
   runState.visited.push(node.id);
   runState.currentNodeId=node.id;
+  pendingNode=node;
   if(node.type==='fight'||node.type==='elite'||node.type==='boss'){
     stopMapAnim();
     startCombat(node.type,nodeEnemyDef(node));
@@ -1148,11 +1149,11 @@ const ROUND_DURATION=12;
 const combatCanvas=document.getElementById('cc');
 const ctx=combatCanvas.getContext('2d');
 let W=900,H=430; const SCALE=0.72;
-let player,enemy,gap,phase,elapsed;
+let player,enemies=[],phase,elapsed;
 let combatLog=[],worldX=0,bgScroll=0;
 let floaters=[],tracers=[],particles=[];
 let lastTime=0,combatAnimId=null;
-let pendingNodeType=null;
+let pendingNodeType=null,pendingNode=null;
 let combatPaused=false,combatSimSpeed=1;
 let combatPSX=220,combatESX=680;
 let playerVisX=-1,enemyVisX=-1,introTimer=0;
@@ -1175,6 +1176,28 @@ const TERRAIN=Array.from({length:22},(_,i)=>({
   type:Math.random()>.45?'rock':'dash',spd:.45+Math.random()*.5
 }));
 
+function spawnEnemies(nodeType,col,eDef){
+  const pool=ENEMIES[nodeType]||ENEMIES.fight;
+  const count=(nodeType==='elite'||nodeType==='boss')?1:
+    col<=1?1:col<=3?(Math.random()<0.5?2:1):(Math.random()<0.5?3:2);
+  const ez=(nodeType==='fight')?2:4;
+  const mult=Math.min(3.0,1.0+col*0.4);
+  const xOff=[0,-22,22];
+  return Array.from({length:count},(_,i)=>{
+    const ed=i===0?(eDef||pool[Math.floor(Math.random()*pool.length)]):pool[Math.floor(Math.random()*pool.length)];
+    const hp=Math.round(ed.hp*mult);
+    const wDmg=Math.round(ed.wDmg*mult);
+    return{isPlayer:false,name:ed.name,kind:ed.kind,color:'#d83a30',
+      hp,maxHp:hp,spd:ed.spd,maxSpd:ed.spd,arm:ed.arm,
+      weapons:[{id:'gun',name:'步槍',range:ed.wRange,zoneRange:ed.wZoneRange??1,cd:ed.wCd,dmg:wDmg,timer:0}],
+      zone:ez,zoneStart:ez,zoneTarget:ez,
+      visX:ez<=3?-160:900+160,
+      xOffset:xOff[i]||0,
+      gap:450,
+      flash:0,burn:0,burnT:0,dmgOut:0,dmgIn:0,hits:0,alive:true};
+  });
+}
+
 function startCombat(nodeType,eDef){
   pendingNodeType=nodeType;
   const{ch,wps,en,ar}=getBuild();
@@ -1188,14 +1211,11 @@ function startCombat(nodeType,eDef){
     weapons:wps.map(wp=>({...wp,timer:0})),
     flash:0,burn:0,burnT:0,dmgOut:0,dmgIn:0,hits:0};
 
-  if(!eDef){const pool=ENEMIES[nodeType]||ENEMIES.fight;eDef=pool[Math.floor(Math.random()*pool.length)];}
-  enemy={isPlayer:false,name:eDef.name,kind:eDef.kind,color:'#d83a30',
-    hp:eDef.hp,maxHp:eDef.hp,spd:eDef.spd,maxSpd:eDef.spd,arm:eDef.arm,
-    weapons:[{id:'gun',name:'步槍',range:eDef.wRange,zoneRange:eDef.wZoneRange??1,cd:eDef.wCd,dmg:eDef.wDmg,timer:0}],
-    flash:0,burn:0,burnT:0,dmgOut:0,dmgIn:0,hits:0};
+  const eCol=pendingNode?pendingNode.col:0;
+  enemies=spawnEnemies(nodeType,eCol,eDef);
 
-  gap=450;phase='intro';elapsed=0;introTimer=0;
-  combatLog=[`// ${player.name} vs ${enemy.name}`];
+  phase='intro';elapsed=0;introTimer=0;
+  combatLog=[`// ${player.name} vs ${enemies.map(e=>e.name).join('/')}`];
   worldX=0;bgScroll=0;floaters=[];tracers=[];particles=[];
   playerAccel=ENGINE_ACCEL[build.engine]||1;
   playerZone=3; enemyZone=(nodeType==='fight')?2:4;
@@ -1203,20 +1223,18 @@ function startCombat(nodeType,eDef){
   enemyZoneStart=enemyZoneTarget=enemyZone;
   roundTick=0;tickAccum=0;
   player.spd=ZONE_SPDS[playerZone-1];
-  enemy.spd=ZONE_SPDS[enemyZone-1];
+  for(const e of enemies)e.spd=ZONE_SPDS[e.zone-1];
   roundTimer=0;
   zoneSelectActive=false;
-  // 玩家：直接對齊 Z3；敵方：從螢幕外滑入
   playerVisX=900*(2*playerZone-1)/10;
-  enemyVisX=enemyZone<=playerZone ? -160 : 900+160; // 左入或右入
+  enemyVisX=enemyZone<=playerZone?-160:900+160;
 
   goScreen('combat');
-  // 更新 header 與 sidebar 初始資訊
   const typeLabel={fight:'raiders',elite:'warlord',boss:'oil baron'}[nodeType]||nodeType;
   document.getElementById('enc-type').textContent='// '+typeLabel;
   document.getElementById('enc-cs').textContent=runState.callsign;
   document.getElementById('cs-pname').textContent='YOU — '+runState.callsign;
-  document.getElementById('cs-ename').textContent='HOSTILE — '+enemy.name;
+  document.getElementById('cs-ename').textContent='HOSTILE — '+enemies.map(e=>e.name).join('/');
   document.getElementById('cs-extra').innerHTML=`ARM <em>${totalArm}</em>  WPN <em>${build.weapons.join('+')}</em>`;
   // 重置控制狀態
   combatPaused=false;combatSimSpeed=1;
@@ -1249,46 +1267,59 @@ function lerp(a,b,t){return a+(b-a)*Math.min(1,Math.max(0,t));}
 
 function update(dt){
   elapsed+=dt;
-  tickV(player,dt);tickV(enemy,dt);
-  // tick 累積（每整秒推進一格 zone）
+  tickV(player,dt);
+  for(const e of enemies)if(e.alive)tickV(e,dt);
   tickAccum+=dt;
   while(tickAccum>=1.0){tickAccum-=1.0;roundTick=Math.min(ROUND_DURATION-1,roundTick+1);}
-  // 計算當前過渡 zone
   const curPZ=transitZone(playerZoneStart,playerZoneTarget,roundTick);
-  const curEZ=transitZone(enemyZoneStart, enemyZoneTarget, roundTick);
-  playerZone=curPZ; enemyZone=curEZ;
-  player.spd=ZONE_SPDS[playerZone-1];
-  enemy.spd=ZONE_SPDS[enemyZone-1];
+  playerZone=curPZ;player.spd=ZONE_SPDS[playerZone-1];
+  for(const e of enemies){
+    if(!e.alive)continue;
+    e.zone=transitZone(e.zoneStart,e.zoneTarget,roundTick);
+    e.spd=ZONE_SPDS[e.zone-1];
+  }
+  enemyZone=(enemies.find(e=>e.alive)||enemies[0])?.zone||3;
   roundTimer+=dt;
   if(roundTimer>=ROUND_DURATION)triggerZoneSelect();
-  // 武器開火：依 zone 高低排先手
-  const zoneDiff=Math.abs(curPZ-curEZ);
   const toFire=[];
   for(const w of player.weapons){
     w.timer=Math.max(0,w.timer-dt);
-    if(w.timer<=0&&zoneDiff<=w.zoneRange)toFire.push({w,src:player,tgt:enemy,zone:curPZ});
+    if(w.timer<=0){
+      const tgts=w.aoe?pickAoeTargets(w):[pickTarget(w)].filter(Boolean);
+      if(tgts.length)toFire.push({w,src:player,tgts,zone:curPZ});
+    }
   }
-  for(const w of enemy.weapons){
-    w.timer=Math.max(0,w.timer-dt);
-    if(w.timer<=0&&zoneDiff<=w.zoneRange)toFire.push({w,src:enemy,tgt:player,zone:curEZ});
+  for(const e of enemies){
+    if(!e.alive)continue;
+    const zd=Math.abs(curPZ-e.zone);
+    for(const w of e.weapons){
+      w.timer=Math.max(0,w.timer-dt);
+      if(w.timer<=0&&zd<=w.zoneRange)toFire.push({w,src:e,tgts:[player],zone:e.zone});
+    }
   }
   toFire.sort((a,b)=>b.zone-a.zone||a.w.cd-b.w.cd);
-  for(const{w,src,tgt}of toFire)fireWeapon(w,src,tgt);
-  const rel=(player.spd-enemy.spd)*60;
-  gap=Math.max(0,Math.min(800,gap-rel*dt));
+  for(const{w,src,tgts}of toFire)fireWeapon(w,src,tgts);
   worldX+=player.spd*60*dt;bgScroll+=player.spd*60*dt*.25;
-  if(gap<28){
-    const rv=Math.abs(player.spd-enemy.spd)*60;
-    const pd=Math.max(0,Math.floor(2+rv*.02-player.arm*.5));
-    const ed=Math.max(0,Math.floor(3+rv*.02-enemy.arm*.5));
-    if(pd>0){player.hp-=pd;player.flash=1;addLog(`‼ 衝撞 -${pd}`);spawnFloat(player,`-${pd}`,'#d83a30');}
-    if(ed>0){enemy.hp-=ed;enemy.flash=1;spawnFloat(enemy,`-${ed}`,'#e8762a');}
-    gap=Math.max(30,gap+18);spawnSparks(combatPSX,6,12,'#f4e1b3');
+  for(const e of enemies){
+    if(!e.alive)continue;
+    const rel=(player.spd-e.spd)*60;
+    e.gap=Math.max(0,Math.min(800,e.gap-rel*dt));
+    if(e.gap<28){
+      const rv=Math.abs(player.spd-e.spd)*60;
+      const pd=Math.max(0,Math.floor(2+rv*.02-player.arm*.5));
+      const ed=Math.max(0,Math.floor(3+rv*.02-e.arm*.5));
+      if(pd>0){player.hp-=pd;player.flash=1;addLog(`‼ 衝撞 -${pd}`);spawnFloat(player,`-${pd}`,'#d83a30');}
+      if(ed>0){e.hp-=ed;e.flash=1;spawnFloat(e,`-${ed}`,'#e8762a');}
+      e.gap=Math.max(30,e.gap+18);spawnSparks(combatPSX,6,12,'#f4e1b3');
+    }
   }
   tracers=tracers.filter(t=>(t.life-=dt)>0);
   floaters=floaters.filter(f=>{f.life-=dt;f.y-=28*dt;return f.life>0;});
   particles=particles.filter(p=>{p.life-=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=200*dt;return p.life>0;});
-  if(enemy.hp<=0&&phase==='combat'){spawnSparks(combatESX,6,40,'#e8762a');endCombat(true);}
+  for(const e of enemies){
+    if(e.alive&&e.hp<=0&&phase==='combat'){e.alive=false;spawnSparks(combatESX,6,40,'#e8762a');}
+  }
+  if(enemies.length&&enemies.every(e=>!e.alive)&&phase==='combat')endCombat(true);
   if(player.hp<=0&&phase==='combat')endCombat(false);
 }
 
@@ -1296,22 +1327,42 @@ function tickV(v,dt){
   v.flash=Math.max(0,v.flash-dt*3);
   if(v.burn>0){v.burnT+=dt;if(v.burnT>=1){v.burnT-=1;v.hp-=1;v.flash=0.5;addLog('🔥 燃燒 -1');spawnFloat(v,'-1 🔥','#e8762a');v.burn--;}}
 }
-function fireWeapon(w,src,tgt){
-  const dmg=Math.max(1,Math.floor(w.dmg*(0.85+Math.random()*.3)-tgt.arm*.5));
-  tgt.hp=Math.max(0,tgt.hp-dmg);tgt.flash=1;
+function pickTarget(w){
+  const cands=enemies.filter(e=>e.alive&&Math.abs(playerZone-e.zone)<=w.zoneRange);
+  if(!cands.length)return null;
+  cands.sort((a,b)=>Math.abs(playerZone-a.zone)-Math.abs(playerZone-b.zone)||a.hp-b.hp);
+  return cands[0];
+}
+function pickAoeTargets(w){
+  const cands=enemies.filter(e=>e.alive&&Math.abs(playerZone-e.zone)<=w.zoneRange);
+  if(!cands.length)return[];
+  const minDiff=Math.min(...cands.map(e=>Math.abs(playerZone-e.zone)));
+  return cands.filter(e=>Math.abs(playerZone-e.zone)===minDiff);
+}
+function fireWeapon(w,src,tgts){
+  w.timer=w.cd;src.hits++;
+  for(let i=0;i<tgts.length;i++){
+    const tgt=tgts[i];
+    const dmg=Math.max(1,Math.floor(w.dmg*(0.85+Math.random()*.3)-tgt.arm*.5));
+    tgt.hp=Math.max(0,tgt.hp-dmg);tgt.flash=1;
+    src.dmgOut+=dmg;tgt.dmgIn+=dmg;
+    if(w.burn&&!tgt.burn){tgt.burn=3;tgt.burnT=0;}
+    if(i===0&&w.pull&&tgt.gap!=null)tgt.gap=Math.max(0,tgt.gap-14);
+    if(i===0){
+      if(w.pull)addLog(`‹ ${w.name} PULL -${dmg}`);
+      else if(src.isPlayer)addLog(`› ${w.name} -${dmg}${tgts.length>1?` ×${tgts.length}`:''}`);
+      else addLog(`◀ ${w.name} -${dmg}`);
+    }
+    const tgtX=tgt.isPlayer?combatPSX:Math.round((tgt.visX||combatESX)+(tgt.xOffset||0));
+    tracers.push({fromPlayer:src.isPlayer,life:.12,color:w.id==='flamer'?'#e8762a':src.isPlayer?'#f4e1b3':'#d83a30',thick:w.id==='mortar'?4:2});
+    spawnFloat(tgt,`-${dmg}`,src.isPlayer?'#e8762a':'#d83a30');
+    spawnSparks(tgtX,4,5,src.isPlayer?'#e8762a':'#d83a30');
+  }
   if(!src.isPlayer&&build.chassis==='scout'&&Math.random()<0.2){
     playerZone=Math.max(1,playerZone-1);
     player.spd=ZONE_SPDS[playerZone-1];
     addLog(`⚡ 受擊失速→Z${playerZone}`);
   }
-  src.dmgOut+=dmg;tgt.dmgIn+=dmg;src.hits++;w.timer=w.cd;
-  if(w.pull){gap=Math.max(0,gap-14);addLog(`‹ ${w.name} PULL -${dmg}`);}
-  else if(src.isPlayer)addLog(`› ${w.name} -${dmg}`);
-  else addLog(`◀ ${w.name} -${dmg}`);
-  if(w.burn&&!tgt.burn){tgt.burn=3;tgt.burnT=0;}
-  tracers.push({fromPlayer:src.isPlayer,life:.12,color:w.id==='flamer'?'#e8762a':src.isPlayer?'#f4e1b3':'#d83a30',thick:w.id==='mortar'?4:2});
-  spawnFloat(tgt,`-${dmg}`,src.isPlayer?'#e8762a':'#d83a30');
-  spawnSparks(src.isPlayer?combatESX:combatPSX,4,5,src.isPlayer?'#e8762a':'#d83a30');
 }
 function addLog(t){combatLog.unshift(t);if(combatLog.length>6)combatLog.pop();}
 function spawnFloat(v,t,c){floaters.push({v,text:t,color:c,y:0,life:1.0});}
@@ -1343,28 +1394,29 @@ function drawCombat(){
     const zx=(z-1)*zoneW;
     if(z%2===0){ctx.fillStyle='rgba(255,255,255,0.025)';ctx.fillRect(zx,roadTop,zoneW,H-roadTop);}
     if(z>1){ctx.strokeStyle='rgba(184,154,106,0.18)';ctx.lineWidth=1;ctx.setLineDash([4,10]);ctx.beginPath();ctx.moveTo(zx,roadTop);ctx.lineTo(zx,H);ctx.stroke();ctx.setLineDash([]);}
-    ctx.fillStyle=`rgba(184,154,106,${z===playerZone||z===enemyZone?0.7:0.28})`;
+    ctx.fillStyle=`rgba(184,154,106,${z===playerZone||enemies.some(e=>e.alive&&e.zone===z)?0.7:0.28})`;
     ctx.font='9px Silkscreen,monospace';ctx.textAlign='center';
     ctx.fillText(`Z${z}`,zx+zoneW/2,roadTop+13);
   }
   // zone-based vehicle X positions with lerp
   let tPSX=W*(2*playerZone-1)/10;
-  let tESX=W*(2*enemyZone-1)/10;
-  if(playerZone===enemyZone){tPSX-=28;tESX+=28;}
   const lerpSpd=phase==='end-win'?0.08:phase==='intro'?0.038:0.025;
-  if(playerVisX<0){playerVisX=tPSX;enemyVisX=tESX;}
-  else{
-    playerVisX=phase==='intro'?tPSX:lerp(playerVisX,tPSX,lerpSpd);
-    enemyVisX=lerp(enemyVisX,tESX,lerpSpd);
+  playerVisX=playerVisX<0||phase==='intro'?tPSX:lerp(playerVisX,tPSX,lerpSpd);
+  for(const e of enemies){
+    const tESX=W*(2*e.zone-1)/10;
+    e.visX=lerp(e.visX<-900?tESX:e.visX,tESX,lerpSpd);
   }
   const pSX=Math.round(playerVisX);
-  const eSX=Math.round(enemyVisX);
-  combatPSX=pSX; combatESX=eSX;
-  for(const t of tracers){const x1=t.fromPlayer?pSX+carPxW(player.kind)/2:eSX-carPxW(enemy.kind)/2,x2=t.fromPlayer?eSX:pSX;ctx.strokeStyle=t.color;ctx.lineWidth=t.thick;ctx.beginPath();ctx.moveTo(x1,baseY-30);ctx.lineTo(x2,baseY-30);ctx.stroke();}
-  drawV(pSX,baseY,player,true);drawV(eSX,baseY,enemy,false);
+  const pe=enemies.find(e=>e.alive)||enemies[0];
+  const eSX=pe?Math.round(pe.visX):680;
+  combatPSX=pSX;combatESX=eSX;
+  enemyVisX=eSX;
+  for(const t of tracers){const x1=t.fromPlayer?pSX+carPxW(player.kind)/2:eSX-carPxW(pe?.kind||'raider')/2,x2=t.fromPlayer?eSX:pSX;ctx.strokeStyle=t.color;ctx.lineWidth=t.thick;ctx.beginPath();ctx.moveTo(x1,baseY-30);ctx.lineTo(x2,baseY-30);ctx.stroke();}
+  drawV(pSX,baseY,player,true);
+  for(const e of enemies)if(e.alive)drawV(Math.round(e.visX)+e.xOffset,baseY,e,false);
   for(const p of particles){ctx.fillStyle=p.color;ctx.fillRect(p.x,baseY-30+p.y,p.size,p.size);}
   ctx.textAlign='center';
-  for(const f of floaters){const sx=f.v.isPlayer?pSX:eSX;ctx.font='bold 14px VT323,monospace';ctx.fillStyle='#0a0604';ctx.fillText(f.text,sx+1,baseY-58+f.y+1);ctx.fillStyle=f.color;ctx.fillText(f.text,sx,baseY-58+f.y);}
+  for(const f of floaters){const sx=f.v.isPlayer?pSX:Math.round(f.v.visX||eSX)+f.v.xOffset;ctx.font='bold 14px VT323,monospace';ctx.fillStyle='#0a0604';ctx.fillText(f.text,sx+1,baseY-58+f.y+1);ctx.fillStyle=f.color;ctx.fillText(f.text,sx,baseY-58+f.y);}
   drawHUD(pSX,eSX,baseY);
   const vg=ctx.createRadialGradient(W/2,H/2,H*.4,W/2,H/2,H*.85);vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(0,0,0,0.5)');ctx.fillStyle=vg;ctx.fillRect(0,0,W,H);
 }
@@ -1387,11 +1439,12 @@ function drawHUD(pSX,eSX,baseY){
   const cx=W/2;
   ctx.fillStyle='rgba(10,6,4,0.75)';ctx.fillRect(cx-44,3,88,26);
   ctx.strokeStyle='#4a341e';ctx.lineWidth=1;ctx.strokeRect(cx-44,3,88,26);
-  ctx.fillStyle='#ddbb55';ctx.font='bold 20px VT323,monospace';ctx.textAlign='center';ctx.fillText(Math.round(gap)+'px',cx,20);
+  const dispGap=enemies.length?Math.round(Math.min(...enemies.filter(e=>e.alive).map(e=>e.gap))):0;
+  ctx.fillStyle='#ddbb55';ctx.font='bold 20px VT323,monospace';ctx.textAlign='center';ctx.fillText(dispGap+'px',cx,20);
   ctx.fillStyle='#664422';ctx.font='9px Silkscreen,monospace';ctx.fillText('GAP',cx,30);
-  // 武器狀態（左下小字，每把武器一行）
   ctx.font='10px Silkscreen,monospace';ctx.textAlign='left';
-  const zoneDiff=Math.abs(playerZone-enemyZone);
+  const peh=enemies.find(e=>e.alive)||enemies[0];
+  const zoneDiff=peh?Math.abs(playerZone-peh.zone):0;
   player.weapons.forEach((w,i)=>{
     const inR=zoneDiff<=w.zoneRange,rdy=w.timer<=0;
     ctx.fillStyle=inR?(rdy?'rgba(68,238,136,0.9)':'rgba(255,170,51,0.9)'):'rgba(68,51,34,0.9)';
@@ -1400,11 +1453,13 @@ function drawHUD(pSX,eSX,baseY){
 }
 
 function updateCombatSidebar(){
-  if(!player||!enemy)return;
+  if(!player||!enemies.length)return;
+  const pe=enemies.find(e=>e.alive)||enemies[0];
+  const aliveCount=enemies.filter(e=>e.alive).length;
   const pHpPct=Math.max(0,player.hp/player.maxHp);
   const pHpCol=pHpPct>.5?'#44bb33':pHpPct>.25?'#ddaa22':'#dd3333';
   const pSpdPct=playerZone/5;
-  const eHpPct=Math.max(0,enemy.hp/enemy.maxHp);
+  const eHpPct=Math.max(0,pe.hp/pe.maxHp);
   const eHpCol=eHpPct>.5?'#44bb33':eHpPct>.25?'#ddaa22':'#dd3333';
   const $=id=>document.getElementById(id);
   const hpFill=$('cs-hp-fill');hpFill.style.width=`calc(${pHpPct*100}% - 2px)`;hpFill.style.background=pHpCol;
@@ -1412,11 +1467,12 @@ function updateCombatSidebar(){
   $('cs-sp-fill').style.width=`calc(${pSpdPct*100}% - 2px)`;
   $('cs-sp-txt').textContent=`Z${playerZone}`;
   const eHpFill=$('cs-ehp-fill');eHpFill.style.width=`calc(${eHpPct*100}% - 2px)`;eHpFill.style.background=eHpCol;
-  $('cs-ehp-txt').textContent=`${Math.round(enemy.hp)}/${enemy.maxHp}`;
-  const eSpdPct=enemyZone/5;
+  $('cs-ehp-txt').textContent=`${Math.round(pe.hp)}/${pe.maxHp}`;
+  const eSpdPct=pe.zone/5;
   $('cs-esp-fill').style.width=`calc(${eSpdPct*100}% - 2px)`;
-  $('cs-esp-txt').textContent=`Z${enemyZone}`;
-  $('cs-edist').textContent=`zone差 ${Math.abs(playerZone-enemyZone)}　tick ${roundTick}/${ROUND_DURATION}`;
+  $('cs-esp-txt').textContent=`Z${pe.zone}`;
+  $('cs-ename').textContent='HOSTILE — '+pe.name+(aliveCount>1?` (+${aliveCount-1})`:'');
+  $('cs-edist').textContent=`zone差 ${Math.abs(playerZone-pe.zone)}　tick ${roundTick}/${ROUND_DURATION}`;
   const fuelPct=Math.max(0,(runState.fuel||0)/20);
   const fuelCol=fuelPct>.4?'var(--acid)':fuelPct>.2?'#ddaa22':'#dd3333';
   const fuelFill=$('cs-fuel-fill');fuelFill.style.width=`calc(${fuelPct*100}% - 2px)`;fuelFill.style.background=fuelCol;
@@ -1479,9 +1535,10 @@ function triggerZoneSelect(){
   const maxZ=Math.min(5,playerZone+playerAccel);
   const isHauler=build.chassis==='hauler';
   const isHybrid=build.engine==='hybrid';
-  const curDiff=Math.abs(playerZone-enemyZone);
+  const peZ=(enemies.find(e=>e.alive)||enemies[0])?.zone||3;
+  const curDiff=Math.abs(playerZone-peZ);
   const wpnInfo=player.weapons.map(w=>w.name+(curDiff<=w.zoneRange?'✓':'OOR')).join(' ');
-  const defaultInfo=`我Z${playerZone} 敵Z${enemyZone} 差${curDiff}　${wpnInfo}`;
+  const defaultInfo=`我Z${playerZone} 敵Z${peZ} 差${curDiff}　${wpnInfo}`;
   infoEl.textContent=defaultInfo;
   for(let z=1;z<=5;z++){
     const inRange=z>=minZ&&z<=maxZ;
@@ -1500,7 +1557,7 @@ function triggerZoneSelect(){
     btn.disabled=!inRange;
     if(inRange){
       btn.onmouseenter=()=>{
-        const predDiff=Math.abs(z-enemyZone);
+        const predDiff=Math.abs(z-peZ);
         const hits=player.weapons.filter(w=>predDiff<=w.zoneRange).map(w=>w.name).join(',');
         infoEl.textContent=`Z${z}: 差${predDiff}${hits?' 射程:'+hits:' 無射程'}${rollPct?' ⚠'+rollPct+'%':''}`;
       };
@@ -1526,36 +1583,41 @@ function confirmZone(z){
   playerZoneStart=transitZone(playerZoneStart,playerZoneTarget,roundTick);
   playerZoneTarget=finalZone;
   enemySelectZone();
-  enemyZoneStart=transitZone(enemyZoneStart,enemyZoneTarget,roundTick);
-  enemyZoneTarget=enemyZone;
+  for(const e of enemies){
+    if(!e.alive)continue;
+    e.zoneStart=transitZone(e.zoneStart,e.zoneTarget,roundTick);
+    e.zoneTarget=e.zone;
+  }
   roundTick=0;tickAccum=0;roundTimer=0;
   if(zoneInstant){
     playerZone=playerZoneStart=playerZoneTarget=finalZone;
-    enemyZone=enemyZoneStart=enemyZoneTarget;
+    for(const e of enemies)if(e.alive)e.zone=e.zoneStart=e.zoneTarget;
     zoneInstant=false;
   } else {
-    playerZone=playerZoneStart; enemyZone=enemyZoneStart;
+    playerZone=playerZoneStart;
+    for(const e of enemies)if(e.alive)e.zone=e.zoneStart;
   }
   player.spd=ZONE_SPDS[playerZone-1];
-  enemy.spd=ZONE_SPDS[enemyZone-1];
+  for(const e of enemies)if(e.alive)e.spd=ZONE_SPDS[e.zone-1];
+  enemyZone=(enemies.find(e=>e.alive)||enemies[0])?.zone||3;
   document.getElementById('zone-select').style.display='none';
   zoneSelectActive=false;
 }
 
 function enemySelectZone(){
-  const wZR=enemy.weapons[0].zoneRange??1;
-  const prev=enemyZone;
-  const diff=Math.abs(playerZone-enemyZone);
-  if(diff>wZR){
-    // 往玩家 zone 靠近
-    if(enemyZone<playerZone&&enemyZone<5)enemyZone++;
-    else if(enemyZone>playerZone&&enemyZone>1)enemyZone--;
-  } else if(wZR===0&&diff<wZR){
-    // 已過近，想拉開（僅限 zoneRange=0 且想維持距離的情況）
-    // 目前保持不動
+  for(const e of enemies){
+    if(!e.alive)continue;
+    const wZR=e.weapons[0].zoneRange??1;
+    const prev=e.zone;
+    const diff=Math.abs(playerZone-e.zone);
+    if(diff>wZR){
+      if(e.zone<playerZone&&e.zone<5)e.zone++;
+      else if(e.zone>playerZone&&e.zone>1)e.zone--;
+    }
+    e.spd=ZONE_SPDS[e.zone-1];
+    if(e.zone!==prev)addLog(`敵方→Z${e.zone}`);
   }
-  enemy.spd=ZONE_SPDS[enemyZone-1];
-  if(enemyZone!==prev)addLog(`敵方→Z${enemyZone}`);
+  enemyZone=(enemies.find(e=>e.alive)||enemies[0])?.zone||3;
 }
 
 function endCombat(win){
@@ -1567,7 +1629,8 @@ function endCombat(win){
     runState.hp=Math.max(1,Math.floor(player.hp));
     runState.scrap+=reward;
     if(fuelLoot>0)runState.fuel+=fuelLoot;
-    runState.log.push(`擊敗 ${enemy.name}。+${reward} 廢料${fuelLoot>0?`　+${fuelLoot} FUEL`:''}。`);
+    const enames=enemies.map(e=>e.name).join('/');
+    runState.log.push(`擊敗 ${enames}。+${reward} 廢料${fuelLoot>0?`　+${fuelLoot} FUEL`:''}。`);
     document.getElementById('ot').textContent=pendingNodeType==='boss'?'石油男爵倒下了':'敵車摧毀';
     document.getElementById('ot').style.color='#e8762a';
     document.getElementById('ostats').innerHTML=`+${reward} 廢料${fuelLoot>0?`　+${fuelLoot} FUEL`:''}　剩餘 HP ${Math.round(player.hp)}/${runState.maxHp}　FUEL ${runState.fuel}`;
@@ -1587,7 +1650,7 @@ function endCombat(win){
   }else{
     phase='end';
     if(combatAnimId){cancelAnimationFrame(combatAnimId);combatAnimId=null;}
-    runState.hp=0;runState.log.push(`在 ${enemy.name} 交戰中報廢。`);
+    runState.hp=0;runState.log.push(`在交戰中報廢。`);
     showEnd(false);
   }
 }
